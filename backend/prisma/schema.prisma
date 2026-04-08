@@ -1,0 +1,354 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  ALUMNI
+  ADMIN
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  MANUAL_REVIEW
+}
+
+enum Visibility {
+  COLLEGE_ONLY
+  PUBLIC
+}
+
+enum ChatType {
+  DM
+  MENTORSHIP
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+}
+
+enum MentorshipStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+enum NotificationType {
+  MENTORSHIP_REQUEST
+  MENTORSHIP_ACCEPTED
+  MENTORSHIP_DECLINED
+  NEW_MESSAGE
+  VERIFICATION_APPROVED
+  VERIFICATION_REJECTED
+  SYSTEM
+}
+
+model College {
+  id          String   @id @default(uuid())
+  name        String
+  emailDomain String?  @unique @map("email_domain")
+  logoUrl     String?  @map("logo_url")
+  city        String?
+  state       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  users User[]
+
+  @@map("colleges")
+}
+
+model User {
+  id                    String             @id @default(uuid())
+  email                 String             @unique
+  passwordHash          String?            @map("password_hash")
+  googleId              String?            @unique @map("google_id")
+  collegeId             String             @map("college_id")
+  role                  Role               @default(STUDENT)
+  verified              Boolean            @default(false)
+  verificationStatus    VerificationStatus @default(PENDING) @map("verification_status")
+  verificationRiskScore Int                @default(0) @map("verification_risk_score")
+  idDocumentUrl         String?            @map("id_document_url")
+  tokenVersion          Int                @default(0) @map("token_version")
+  failedLoginAttempts   Int                @default(0) @map("failed_login_attempts")
+  lockedUntil           DateTime?          @map("locked_until")
+  isBanned              Boolean            @default(false) @map("is_banned")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+
+  college               College            @relation(fields: [collegeId], references: [id])
+  profile               Profile?
+  refreshTokens         RefreshToken[]
+  sentMessages          Message[]          @relation("SentMessages")
+  chatParticipants      ChatParticipant[]
+  mentorshipsAsMentor   Mentorship[]       @relation("MentorRelation")
+  mentorshipsAsMentee   Mentorship[]       @relation("MenteeRelation")
+  verificationLogs      VerificationLog[]
+  blocksInitiated       Block[]            @relation("BlockInitiator")
+  blocksReceived        Block[]            @relation("BlockTarget")
+  reportsFiled          Report[]           @relation("ReportFiler")
+  reportsReceived       Report[]           @relation("ReportTarget")
+  notifications         Notification[]
+
+  @@index([collegeId])
+  @@map("users")
+}
+
+model Profile {
+  id                String     @id @default(uuid())
+  userId            String     @unique @map("user_id")
+  firstName         String     @map("first_name")
+  lastName          String     @map("last_name")
+  avatarUrl         String?    @map("avatar_url")
+  bio               String?    @db.VarChar(500)
+  batchYear         Int        @map("batch_year")
+  graduationYear    Int?       @map("graduation_year")
+  department        String
+  currentRole       String?    @map("current_role")
+  company           String?
+  location          String?
+  linkedinUrl       String?    @map("linkedin_url")
+  portfolioUrl      String?    @map("portfolio_url")
+  openToMentorship  Boolean    @default(false) @map("open_to_mentorship")
+  maxMentees        Int        @default(3) @map("max_mentees")
+  profileVisibility Visibility @default(COLLEGE_ONLY) @map("profile_visibility")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skills       ProfileSkill[]
+  experiences  Experience[]
+  achievements Achievement[]
+
+  @@index([batchYear])
+  @@index([department])
+  @@index([openToMentorship])
+  @@map("profiles")
+}
+
+model Skill {
+  id       String         @id @default(uuid())
+  name     String         @unique
+  profiles ProfileSkill[]
+
+  @@map("skills")
+}
+
+model ProfileSkill {
+  profileId String @map("profile_id")
+  skillId   String @map("skill_id")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([profileId, skillId])
+  @@map("profile_skills")
+}
+
+model Experience {
+  id          String   @id @default(uuid())
+  profileId   String   @map("profile_id")
+  title       String
+  company     String
+  fromDate    DateTime @map("from_date")
+  toDate      DateTime? @map("to_date")
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("experiences")
+}
+
+model Achievement {
+  id          String   @id @default(uuid())
+  profileId   String   @map("profile_id")
+  title       String
+  year        Int
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("achievements")
+}
+
+model Chat {
+  id            String    @id @default(uuid())
+  type          ChatType  @default(DM)
+  lastMessageAt DateTime? @map("last_message_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  participants ChatParticipant[]
+  messages     Message[]
+
+  @@map("chats")
+}
+
+model ChatParticipant {
+  chatId   String   @map("chat_id")
+  userId   String   @map("user_id")
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([chatId, userId])
+  @@map("chat_participants")
+}
+
+model Message {
+  id        String      @id @default(uuid())
+  chatId    String      @map("chat_id")
+  fromId    String      @map("from_id")
+  content   String?
+  mediaUrl  String?     @map("media_url")
+  type      MessageType @default(TEXT)
+  read      Boolean     @default(false)
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  from User @relation("SentMessages", fields: [fromId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, createdAt])
+  @@map("messages")
+}
+
+model Mentorship {
+  id              String           @id @default(uuid())
+  mentorId        String           @map("mentor_id")
+  menteeId        String           @map("mentee_id")
+  status          MentorshipStatus @default(PENDING)
+  requestMessage  String           @db.VarChar(500) @map("request_message")
+  startDate       DateTime?        @map("start_date")
+  endDate         DateTime?        @map("end_date")
+  surveyCompleted Boolean          @default(false) @map("survey_completed")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  mentor User @relation("MentorRelation", fields: [mentorId], references: [id], onDelete: Cascade)
+  mentee User @relation("MenteeRelation", fields: [menteeId], references: [id], onDelete: Cascade)
+  notes  MentorshipNote[]
+  goals  MentorshipGoal[]
+
+  @@index([mentorId, status])
+  @@index([menteeId, status])
+  @@map("mentorships")
+}
+
+model MentorshipNote {
+  id           String   @id @default(uuid())
+  mentorshipId String   @map("mentorship_id")
+  addedById    String   @map("added_by_id")
+  content      String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  mentorship Mentorship @relation(fields: [mentorshipId], references: [id], onDelete: Cascade)
+
+  @@index([mentorshipId, createdAt])
+  @@map("mentorship_notes")
+}
+
+model MentorshipGoal {
+  id           String   @id @default(uuid())
+  mentorshipId String   @map("mentorship_id")
+  text         String
+  completed    Boolean  @default(false)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  mentorship Mentorship @relation(fields: [mentorshipId], references: [id], onDelete: Cascade)
+
+  @@map("mentorship_goals")
+}
+
+model VerificationLog {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  riskScore  Int      @map("risk_score")
+  ocrName    String?  @map("ocr_name")
+  decision   String
+  reviewedBy String?  @map("reviewed_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("verification_logs")
+}
+
+model Block {
+  id        String   @id @default(uuid())
+  blockerId String   @map("blocker_id")
+  blockedId String   @map("blocked_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  blocker User @relation("BlockInitiator", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlockTarget", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@map("blocks")
+}
+
+model Report {
+  id         String       @id @default(uuid())
+  filerId    String       @map("filer_id")
+  targetId   String       @map("target_id")
+  reason     String
+  status     ReportStatus @default(OPEN)
+  resolvedAt DateTime?    @map("resolved_at")
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  filer  User @relation("ReportFiler", fields: [filerId], references: [id], onDelete: Cascade)
+  target User @relation("ReportTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  type      NotificationType
+  title     String
+  body      String
+  read      Boolean          @default(false)
+  meta      Json?
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@map("notifications")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  userAgent String?  @map("user_agent")
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("refresh_tokens")
+}

@@ -1,52 +1,34 @@
-import dotenv from 'dotenv'
-import cors from 'cors'
-import express from 'express'
+import http from 'http'
 
-import { initDatabase } from './db.js'
-import authRouter from './routes/auth.routes.js'
+import { app } from './app.js'
+import { env } from './config/env.js'
+import { prisma } from './config/prisma.js'
+import { createSocketServer } from './socket/socket.handler.js'
 
-dotenv.config()
+const bootstrap = async () => {
+  try {
+    await prisma.$connect()
 
-const app = express()
+    const server = http.createServer(app)
+    createSocketServer(server)
 
-const port = Number(process.env.PORT || 5000)
-const origins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean)
-
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin || origins.length === 0 || origins.includes(origin)) {
-        return callback(null, true)
-      }
-      return callback(new Error('Origin not allowed by CORS'))
-    },
-    credentials: true,
-  }),
-)
-
-app.use(express.json())
-
-app.get('/api/health', (_req, res) => {
-  res.status(200).json({ status: 'ok' })
-})
-
-app.use('/api/auth', authRouter)
-
-app.use((error, _req, res, _next) => {
-  console.error('[backend] unhandled error:', error)
-  res.status(500).json({ message: 'Internal server error.' })
-})
-
-initDatabase()
-  .then(() => {
-    app.listen(port, () => {
-      console.log(`[backend] server is running on http://localhost:${port}`)
+    server.listen(env.port, () => {
+      console.log(`[backend] running on http://localhost:${env.port}`)
     })
-  })
-  .catch((error) => {
-    console.error('[backend] database initialization failed:', error)
+
+    const shutdown = async () => {
+      await prisma.$disconnect()
+      server.close(() => {
+        process.exit(0)
+      })
+    }
+
+    process.on('SIGINT', shutdown)
+    process.on('SIGTERM', shutdown)
+  } catch (error) {
+    console.error('[backend] failed to start:', error)
     process.exit(1)
-  })
+  }
+}
+
+bootstrap()

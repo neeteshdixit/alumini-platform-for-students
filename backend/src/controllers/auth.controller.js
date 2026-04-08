@@ -1,119 +1,412 @@
 import bcrypt from 'bcryptjs'
 
-import { getDb } from '../db.js'
+import { prisma } from '../config/prisma.js'
+import { env } from '../config/env.js'
+import { AppError } from '../utils/app-error.js'
+import { sendSuccess } from '../utils/api-response.js'
+import {
+  getRefreshCookieOptions,
+  refreshCookieName,
+} from '../utils/cookie-options.js'
+import { asyncHandler } from '../utils/async-handler.js'
+import {
+  createAccessToken,
+  createRefreshToken,
+  getRefreshTokenExpiryDate,
+  hashToken,
+  verifyRefreshToken,
+} from '../services/token.service.js'
 
-function normalizeEmail(email) {
-  return email.trim().toLowerCase()
-}
+const normalizeEmail = (email) => email.trim().toLowerCase()
 
-function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-}
+const splitFullName = (fullName) => {
+  const compact = fullName.trim().replace(/\s+/g, ' ')
+  const [firstName, ...rest] = compact.split(' ')
 
-export async function signup(req, res, next) {
-  try {
-    const {
-      fullName = '',
-      email = '',
-      password = '',
-      confirmPassword = '',
-      institution = '',
-    } = req.body
-
-    const trimmedName = fullName.trim()
-    const trimmedInstitution = institution.trim()
-    const normalizedEmail = normalizeEmail(email)
-
-    if (!trimmedName) {
-      return res.status(400).json({ message: 'Full name is required.' })
-    }
-
-    if (!isValidEmail(normalizedEmail)) {
-      return res.status(400).json({ message: 'Valid email is required.' })
-    }
-
-    if (password.length < 8) {
-      return res
-        .status(400)
-        .json({ message: 'Password must be at least 8 characters long.' })
-    }
-
-    if (confirmPassword && password !== confirmPassword) {
-      return res.status(400).json({ message: 'Passwords do not match.' })
-    }
-
-    const db = getDb()
-
-    const [existingUsers] = await db.query(
-      'SELECT id FROM users WHERE email = ? LIMIT 1',
-      [normalizedEmail],
-    )
-
-    if (existingUsers.length > 0) {
-      return res.status(409).json({ message: 'Email already exists.' })
-    }
-
-    const passwordHash = await bcrypt.hash(password, 10)
-
-    const [result] = await db.query(
-      'INSERT INTO users (full_name, email, password_hash, institution) VALUES (?, ?, ?, ?)',
-      [trimmedName, normalizedEmail, passwordHash, trimmedInstitution || null],
-    )
-
-    const [rows] = await db.query(
-      'SELECT id, full_name AS fullName, email, institution, created_at AS createdAt FROM users WHERE id = ? LIMIT 1',
-      [result.insertId],
-    )
-
-    return res.status(201).json({
-      message: 'Signup successful.',
-      user: rows[0],
-    })
-  } catch (error) {
-    return next(error)
+  return {
+    firstName,
+    lastName: rest.join(' ') || '-',
   }
 }
 
-export async function login(req, res, next) {
-  try {
-    const { email = '', password = '' } = req.body
-    const normalizedEmail = normalizeEmail(email)
+const institutionIsPlaceholder = (institution = '') => {
+  return institution.trim().toLowerCase() === 'select your college'
+}
 
-    if (!isValidEmail(normalizedEmail)) {
-      return res.status(400).json({ message: 'Valid email is required.' })
-    }
+const ensureCollege = async ({ email, institution }) => {
+  const emailDomain = email.split('@')[1]
 
-    if (!password) {
-      return res.status(400).json({ message: 'Password is required.' })
-    }
+  let college = await prisma.college.findFirst({
+    where: {
+      emailDomain,
+    },
+  })
 
-    const db = getDb()
-    const [rows] = await db.query(
-      'SELECT id, full_name AS fullName, email, institution, password_hash AS passwordHash FROM users WHERE email = ? LIMIT 1',
-      [normalizedEmail],
-    )
-
-    if (rows.length === 0) {
-      return res.status(401).json({ message: 'Invalid email or password.' })
-    }
-
-    const user = rows[0]
-    const passwordMatched = await bcrypt.compare(password, user.passwordHash)
-
-    if (!passwordMatched) {
-      return res.status(401).json({ message: 'Invalid email or password.' })
-    }
-
-    return res.status(200).json({
-      message: 'Login successful.',
-      user: {
-        id: user.id,
-        fullName: user.fullName,
-        email: user.email,
-        institution: user.institution,
+  if (!college && institution && !institutionIsPlaceholder(institution)) {
+    college = await prisma.college.findFirst({
+      where: {
+        name: {
+          equals: institution.trim(),
+          mode: 'insensitive',
+        },
       },
     })
-  } catch (error) {
-    return next(error)
+
+    if (!college) {
+      college = await prisma.college.create({
+        data: {
+          name: institution.trim(),
+          emailDomain,
+        },
+      })
+    }
+  }
+
+  if (!college) {
+    college = await prisma.college.create({
+      data: {
+        name: emailDomain.toUpperCase(),
+        emailDomain,
+      },
+    })
+  }
+
+  return college
+}
+
+const buildUserResponse = (user) => {
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    verified: user.verified,
+    collegeId: user.collegeId,
+    collegeName: user.college?.name || null,
+    fullName: user.profile
+      ? `${user.profile.firstName} ${user.profile.lastName}`.trim()
+      : user.email,
+    firstName: user.profile?.firstName || '',
+    lastName: user.profile?.lastName || '',
+    avatarUrl: user.profile?.avatarUrl || null,
+    openToMentorship: user.profile?.openToMentorship || false,
   }
 }
+
+const buildTokenPayload = (user) => {
+  return {
+    userId: user.id,
+    role: user.role,
+    collegeId: user.collegeId,
+    tokenVersion: user.tokenVersion,
+  }
+}
+
+const issueAuthSession = async ({ user, req, res }) => {
+  const tokenPayload = buildTokenPayload(user)
+  const accessToken = createAccessToken(tokenPayload)
+  const refreshToken = createRefreshToken(tokenPayload)
+  const refreshTokenHash = hashToken(refreshToken)
+  const refreshTokenExpiresAt = getRefreshTokenExpiryDate()
+
+  await prisma.refreshToken.create({
+    data: {
+      userId: user.id,
+      tokenHash: refreshTokenHash,
+      expiresAt: refreshTokenExpiresAt,
+      userAgent: req.get('user-agent') || null,
+      ipAddress: req.ip || null,
+    },
+  })
+
+  res.cookie(
+    refreshCookieName,
+    refreshToken,
+    getRefreshCookieOptions(refreshTokenExpiresAt),
+  )
+
+  return accessToken
+}
+
+export const signup = asyncHandler(async (req, res) => {
+  const { fullName, email, password, institution } = req.body
+  const normalizedEmail = normalizeEmail(email)
+
+  const existingUser = await prisma.user.findUnique({
+    where: {
+      email: normalizedEmail,
+    },
+  })
+
+  if (existingUser) {
+    throw new AppError('Email already exists.', 409)
+  }
+
+  const college = await ensureCollege({
+    email: normalizedEmail,
+    institution,
+  })
+
+  const { firstName, lastName } = splitFullName(fullName)
+  const passwordHash = await bcrypt.hash(password, 12)
+  const now = new Date()
+
+  const createdUser = await prisma.user.create({
+    data: {
+      email: normalizedEmail,
+      passwordHash,
+      collegeId: college.id,
+      role: 'STUDENT',
+      profile: {
+        create: {
+          firstName,
+          lastName,
+          batchYear: now.getFullYear(),
+          graduationYear: now.getFullYear() + 4,
+          department: 'Not specified',
+          maxMentees: 3,
+        },
+      },
+    },
+    include: {
+      college: true,
+      profile: true,
+    },
+  })
+
+  return sendSuccess(
+    res,
+    {
+      message: 'Signup successful. Please login with your credentials.',
+      user: buildUserResponse(createdUser),
+    },
+    201,
+  )
+})
+
+export const login = asyncHandler(async (req, res) => {
+  const { email, password } = req.body
+  const normalizedEmail = normalizeEmail(email)
+
+  const user = await prisma.user.findUnique({
+    where: {
+      email: normalizedEmail,
+    },
+    include: {
+      college: true,
+      profile: true,
+    },
+  })
+
+  if (!user || !user.passwordHash) {
+    throw new AppError('Invalid email or password.', 401)
+  }
+
+  const now = new Date()
+  if (user.lockedUntil && user.lockedUntil > now) {
+    throw new AppError('Account is temporarily locked. Please try again later.', 423)
+  }
+
+  const passwordMatches = await bcrypt.compare(password, user.passwordHash)
+
+  if (!passwordMatches) {
+    const failedAttempts = user.failedLoginAttempts + 1
+    const lockReached = failedAttempts >= env.authLoginMaxAttempts
+
+    await prisma.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        failedLoginAttempts: lockReached ? 0 : failedAttempts,
+        lockedUntil: lockReached
+          ? new Date(Date.now() + env.authLockMinutes * 60 * 1000)
+          : null,
+      },
+    })
+
+    throw new AppError('Invalid email or password.', 401)
+  }
+
+  await prisma.user.update({
+    where: {
+      id: user.id,
+    },
+    data: {
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+    },
+  })
+
+  const accessToken = await issueAuthSession({
+    user,
+    req,
+    res,
+  })
+
+  return sendSuccess(res, {
+    message: 'Login successful.',
+    accessToken,
+    user: buildUserResponse(user),
+  })
+})
+
+export const refreshToken = asyncHandler(async (req, res) => {
+  const cookieToken = req.cookies?.[refreshCookieName]
+  const bodyToken = req.body?.refreshToken
+  const incomingToken = cookieToken || bodyToken
+
+  if (!incomingToken) {
+    throw new AppError('Refresh token is required.', 401)
+  }
+
+  let payload
+  try {
+    payload = verifyRefreshToken(incomingToken)
+  } catch (_error) {
+    throw new AppError('Invalid refresh token.', 401)
+  }
+
+  const incomingTokenHash = hashToken(incomingToken)
+
+  const storedToken = await prisma.refreshToken.findUnique({
+    where: {
+      tokenHash: incomingTokenHash,
+    },
+    include: {
+      user: {
+        include: {
+          college: true,
+          profile: true,
+        },
+      },
+    },
+  })
+
+  if (!storedToken) {
+    throw new AppError('Refresh token not recognized.', 401)
+  }
+
+  if (storedToken.revokedAt || storedToken.expiresAt < new Date()) {
+    throw new AppError('Refresh token expired. Please login again.', 401)
+  }
+
+  if (!storedToken.user || storedToken.user.tokenVersion !== payload.tokenVersion) {
+    throw new AppError('Session is no longer valid. Please login again.', 401)
+  }
+
+  await prisma.refreshToken.update({
+    where: {
+      id: storedToken.id,
+    },
+    data: {
+      revokedAt: new Date(),
+    },
+  })
+
+  const accessToken = await issueAuthSession({
+    user: storedToken.user,
+    req,
+    res,
+  })
+
+  return sendSuccess(res, {
+    message: 'Token refreshed successfully.',
+    accessToken,
+    user: buildUserResponse(storedToken.user),
+  })
+})
+
+export const logout = asyncHandler(async (req, res) => {
+  const incomingToken = req.cookies?.[refreshCookieName] || req.body?.refreshToken
+
+  if (incomingToken) {
+    const incomingTokenHash = hashToken(incomingToken)
+
+    await prisma.refreshToken.updateMany({
+      where: {
+        tokenHash: incomingTokenHash,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: new Date(),
+      },
+    })
+  }
+
+  res.clearCookie(refreshCookieName, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: env.isProduction,
+    path: '/api/v1/auth',
+  })
+
+  return sendSuccess(res, {
+    message: 'Logged out successfully.',
+  })
+})
+
+export const logoutAllDevices = asyncHandler(async (req, res) => {
+  const userId = req.user?.userId
+
+  if (!userId) {
+    throw new AppError('Unauthorized.', 401)
+  }
+
+  await prisma.user.update({
+    where: {
+      id: userId,
+    },
+    data: {
+      tokenVersion: {
+        increment: 1,
+      },
+    },
+  })
+
+  await prisma.refreshToken.updateMany({
+    where: {
+      userId,
+      revokedAt: null,
+    },
+    data: {
+      revokedAt: new Date(),
+    },
+  })
+
+  res.clearCookie(refreshCookieName, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: env.isProduction,
+    path: '/api/v1/auth',
+  })
+
+  return sendSuccess(res, {
+    message: 'Logged out from all devices.',
+  })
+})
+
+export const me = asyncHandler(async (req, res) => {
+  const userId = req.user?.userId
+
+  if (!userId) {
+    throw new AppError('Unauthorized.', 401)
+  }
+
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId,
+    },
+    include: {
+      college: true,
+      profile: true,
+    },
+  })
+
+  if (!user) {
+    throw new AppError('User not found.', 404)
+  }
+
+  return sendSuccess(res, {
+    user: buildUserResponse(user),
+  })
+})
