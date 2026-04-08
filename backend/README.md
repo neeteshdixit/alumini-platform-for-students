@@ -1,33 +1,47 @@
-# Backend Setup
+# AlumniConnect Backend (PostgreSQL + Prisma)
 
-## 1) Install dependencies
+## Setup
+
+1. Install dependencies
 
 ```bash
 npm install
 ```
 
-## 2) Configure environment
+2. Configure env
 
-Use `.env` (already created) or update from `.env.example`.
+Copy `.env.example` to `.env` and set your PostgreSQL credentials.
 
 ```env
 PORT=5000
+NODE_ENV=development
 CLIENT_ORIGIN=http://localhost:5173
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=Neet2006@
-DB_NAME=alumini-platform
+DATABASE_URL=postgresql://postgres:<password>@localhost:5432/alumini-platform?schema=public
+JWT_ACCESS_SECRET=change-me-access-secret
+JWT_REFRESH_SECRET=change-me-refresh-secret
 ```
 
-## 3) Run server
+3. Push schema + seed data
+
+```bash
+npm run prisma:push
+npm run db:seed
+```
+
+4. Start backend
 
 ```bash
 npm run dev
 ```
 
-## API
+## Core APIs
 
 - `GET /api/health`
-- `POST /api/auth/signup`
-- `POST /api/auth/login`
+- `POST /api/v1/auth/signup`
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/refresh-token`
+- `POST /api/v1/auth/logout`
+- `POST /api/v1/auth/logout-all`
+- `GET /api/v1/auth/me`
+
+Legacy auth alias is also available: `/api/auth/*`.

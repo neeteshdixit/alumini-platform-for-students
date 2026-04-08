@@ -52,6 +52,19 @@ enum ReportStatus {
   DISMISSED
 }
 
+enum ConnectionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum PostType {
+  CERTIFICATE
+  HACKATHON
+  EVENT
+  GENERAL
+}
+
 enum NotificationType {
   MENTORSHIP_REQUEST
   MENTORSHIP_ACCEPTED
@@ -73,12 +86,14 @@ model College {
 
   users User[]
 
+  @@index([state, name])
   @@map("colleges")
 }
 
 model User {
   id                    String             @id @default(uuid())
   email                 String             @unique
+  enrollmentNumber      String?            @unique @map("enrollment_number")
   passwordHash          String?            @map("password_hash")
   googleId              String?            @unique @map("google_id")
   collegeId             String             @map("college_id")
@@ -107,6 +122,10 @@ model User {
   reportsFiled          Report[]           @relation("ReportFiler")
   reportsReceived       Report[]           @relation("ReportTarget")
   notifications         Notification[]
+  otpVerifications      EmailOtp[]
+  sentConnectionRequests ConnectionRequest[] @relation("SentConnectionRequests")
+  receivedConnectionRequests ConnectionRequest[] @relation("ReceivedConnectionRequests")
+  posts                 Post[]
 
   @@index([collegeId])
   @@map("users")
@@ -129,6 +148,8 @@ model Profile {
   portfolioUrl      String?    @map("portfolio_url")
   openToMentorship  Boolean    @default(false) @map("open_to_mentorship")
   maxMentees        Int        @default(3) @map("max_mentees")
+  skillTags         String[]   @default([]) @map("skill_tags")
+  interestTags      String[]   @default([]) @map("interest_tags")
   profileVisibility Visibility @default(COLLEGE_ONLY) @map("profile_visibility")
   createdAt         DateTime   @default(now()) @map("created_at")
   updatedAt         DateTime   @updatedAt @map("updated_at")
@@ -335,6 +356,56 @@ model Notification {
 
   @@index([userId, read])
   @@map("notifications")
+}
+
+model EmailOtp {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  otpHash    String   @map("otp_hash")
+  expiresAt  DateTime @map("expires_at")
+  attempts   Int      @default(0)
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("email_otps")
+}
+
+model ConnectionRequest {
+  id          String           @id @default(uuid())
+  requesterId String           @map("requester_id")
+  receiverId  String           @map("receiver_id")
+  status      ConnectionStatus @default(PENDING)
+  respondedAt DateTime?        @map("responded_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  requester User @relation("SentConnectionRequests", fields: [requesterId], references: [id], onDelete: Cascade)
+  receiver  User @relation("ReceivedConnectionRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, receiverId])
+  @@index([receiverId, status])
+  @@index([requesterId, status])
+  @@map("connection_requests")
+}
+
+model Post {
+  id            String   @id @default(uuid())
+  authorId      String   @map("author_id")
+  type          PostType @default(GENERAL)
+  title         String
+  description   String
+  attachmentUrl String?  @map("attachment_url")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([authorId, createdAt])
+  @@map("posts")
 }
 
 model RefreshToken {

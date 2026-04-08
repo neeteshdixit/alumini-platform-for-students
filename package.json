@@ -8,7 +8,9 @@
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "start:backend": "npm --prefix backend run start",
-    "build:frontend": "npm --prefix frontend run build"
+    "build:frontend": "npm --prefix frontend run build",
+    "db:init": "npm --prefix backend run prisma:push && npm --prefix backend run db:seed",
+    "db:studio": "npm --prefix backend run prisma:studio"
   },
   "private": true,
   "devDependencies": {

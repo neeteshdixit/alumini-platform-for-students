@@ -7,7 +7,6 @@ const collegeSeeds = [
   { name: 'IIT Bombay', emailDomain: 'iitb.ac.in', city: 'Mumbai', state: 'Maharashtra' },
   { name: 'IIT Delhi', emailDomain: 'iitd.ac.in', city: 'New Delhi', state: 'Delhi' },
   { name: 'IIM Ahmedabad', emailDomain: 'iima.ac.in', city: 'Ahmedabad', state: 'Gujarat' },
-  { name: 'AlumniConnect Demo College', emailDomain: 'alumni.edu', city: 'Remote', state: 'Virtual' },
 ]
 
 async function main() {

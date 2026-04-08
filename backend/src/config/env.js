@@ -31,4 +31,10 @@ export const env = {
   refreshTokenExpiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '7d',
   authLoginMaxAttempts: parseNumber(process.env.AUTH_LOGIN_MAX_ATTEMPTS, 5),
   authLockMinutes: parseNumber(process.env.AUTH_LOCK_MINUTES, 15),
+  otpExpiryMinutes: parseNumber(process.env.OTP_EXPIRY_MINUTES, 10),
+  otpMaxAttempts: parseNumber(process.env.OTP_MAX_ATTEMPTS, 5),
+  resendApiKey: process.env.RESEND_API_KEY || '',
+  otpFromEmail: process.env.OTP_FROM_EMAIL || '',
+  messageEncryptionSecret:
+    process.env.MESSAGE_ENCRYPTION_SECRET || process.env.JWT_ACCESS_SECRET,
 }

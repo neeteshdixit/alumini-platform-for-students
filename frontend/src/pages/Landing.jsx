@@ -1,4 +1,5 @@
 import CTA from '../components/landing/CTA'
+import CollegeSelector from '../components/CollegeSelector'
 import Features from '../components/landing/Features'
 import Footer from '../components/landing/Footer'
 import Hero from '../components/landing/Hero'
@@ -12,6 +13,11 @@ function Landing() {
 
       <main className="pt-16">
         <Hero />
+        <section className="bg-surface px-6 pb-12 md:px-8">
+          <div className="mx-auto w-full max-w-5xl -translate-y-10 md:-translate-y-14">
+            <CollegeSelector />
+          </div>
+        </section>
         <Features />
         <Testimonials />
         <CTA />

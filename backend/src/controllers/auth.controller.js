@@ -16,79 +16,18 @@ import {
   hashToken,
   verifyRefreshToken,
 } from '../services/token.service.js'
+import { buildPublicUser } from '../services/user-presenter.service.js'
+import { issueOtpForUser, verifyUserOtp } from '../services/otp.service.js'
 
-const normalizeEmail = (email) => email.trim().toLowerCase()
+const normalizeEmail = (value) => value.trim().toLowerCase()
 
-const splitFullName = (fullName) => {
-  const compact = fullName.trim().replace(/\s+/g, ' ')
+const splitName = (name) => {
+  const compact = name.trim().replace(/\s+/g, ' ')
   const [firstName, ...rest] = compact.split(' ')
 
   return {
     firstName,
     lastName: rest.join(' ') || '-',
-  }
-}
-
-const institutionIsPlaceholder = (institution = '') => {
-  return institution.trim().toLowerCase() === 'select your college'
-}
-
-const ensureCollege = async ({ email, institution }) => {
-  const emailDomain = email.split('@')[1]
-
-  let college = await prisma.college.findFirst({
-    where: {
-      emailDomain,
-    },
-  })
-
-  if (!college && institution && !institutionIsPlaceholder(institution)) {
-    college = await prisma.college.findFirst({
-      where: {
-        name: {
-          equals: institution.trim(),
-          mode: 'insensitive',
-        },
-      },
-    })
-
-    if (!college) {
-      college = await prisma.college.create({
-        data: {
-          name: institution.trim(),
-          emailDomain,
-        },
-      })
-    }
-  }
-
-  if (!college) {
-    college = await prisma.college.create({
-      data: {
-        name: emailDomain.toUpperCase(),
-        emailDomain,
-      },
-    })
-  }
-
-  return college
-}
-
-const buildUserResponse = (user) => {
-  return {
-    id: user.id,
-    email: user.email,
-    role: user.role,
-    verified: user.verified,
-    collegeId: user.collegeId,
-    collegeName: user.college?.name || null,
-    fullName: user.profile
-      ? `${user.profile.firstName} ${user.profile.lastName}`.trim()
-      : user.email,
-    firstName: user.profile?.firstName || '',
-    lastName: user.profile?.lastName || '',
-    avatarUrl: user.profile?.avatarUrl || null,
-    openToMentorship: user.profile?.openToMentorship || false,
   }
 }
 
@@ -127,78 +66,258 @@ const issueAuthSession = async ({ user, req, res }) => {
   return accessToken
 }
 
-export const signup = asyncHandler(async (req, res) => {
-  const { fullName, email, password, institution } = req.body
-  const normalizedEmail = normalizeEmail(email)
+const findCollegeByName = async (collegeName) => {
+  return prisma.college.findFirst({
+    where: {
+      name: {
+        equals: collegeName.trim(),
+        mode: 'insensitive',
+      },
+    },
+  })
+}
 
-  const existingUser = await prisma.user.findUnique({
+const ensureCollege = async ({ collegeId, collegeName, email }) => {
+  if (collegeId) {
+    const byId = await prisma.college.findUnique({
+      where: {
+        id: collegeId,
+      },
+    })
+
+    if (!byId) {
+      throw new AppError('Invalid collegeId.', 400)
+    }
+
+    return byId
+  }
+
+  if (collegeName) {
+    const existing = await findCollegeByName(collegeName)
+    if (existing) {
+      return existing
+    }
+
+    const emailDomain = email.includes('@') ? email.split('@')[1] : null
+    return prisma.college.create({
+      data: {
+        name: collegeName.trim(),
+        emailDomain,
+      },
+    })
+  }
+
+  throw new AppError('collegeId or collegeName is required.', 400)
+}
+
+const findUserForLogin = async ({ email, enrollmentNumber, identifier }) => {
+  const normalizedEmail = email ? normalizeEmail(email) : null
+  const enrollment = enrollmentNumber?.trim()
+  const lookup = identifier?.trim()
+
+  if (normalizedEmail) {
+    return prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      include: { college: true, profile: true },
+    })
+  }
+
+  if (enrollment) {
+    return prisma.user.findUnique({
+      where: { enrollmentNumber: enrollment },
+      include: { college: true, profile: true },
+    })
+  }
+
+  if (!lookup) {
+    return null
+  }
+
+  const looksLikeEmail = lookup.includes('@')
+  if (looksLikeEmail) {
+    return prisma.user.findUnique({
+      where: { email: normalizeEmail(lookup) },
+      include: { college: true, profile: true },
+    })
+  }
+
+  return prisma.user.findUnique({
+    where: { enrollmentNumber: lookup },
+    include: { college: true, profile: true },
+  })
+}
+
+const includeUserShape = {
+  college: true,
+  profile: true,
+}
+
+export const signup = asyncHandler(async (req, res) => {
+  const {
+    role,
+    name,
+    email,
+    password,
+    collegeId,
+    collegeName,
+    enrollmentNumber,
+  } = req.body
+
+  const normalizedEmail = normalizeEmail(email)
+  const existingByEmail = await prisma.user.findUnique({
     where: {
       email: normalizedEmail,
     },
   })
 
-  if (existingUser) {
+  if (existingByEmail) {
     throw new AppError('Email already exists.', 409)
   }
 
+  if (role === 'ALUMNI' && enrollmentNumber) {
+    const enrollmentExists = await prisma.user.findUnique({
+      where: {
+        enrollmentNumber,
+      },
+    })
+
+    if (enrollmentExists) {
+      throw new AppError('Enrollment number already exists.', 409)
+    }
+  }
+
   const college = await ensureCollege({
+    collegeId,
+    collegeName,
     email: normalizedEmail,
-    institution,
   })
 
-  const { firstName, lastName } = splitFullName(fullName)
+  const { firstName, lastName } = splitName(name)
   const passwordHash = await bcrypt.hash(password, 12)
-  const now = new Date()
+  const currentYear = new Date().getFullYear()
 
   const createdUser = await prisma.user.create({
     data: {
       email: normalizedEmail,
+      enrollmentNumber: role === 'ALUMNI' ? enrollmentNumber : null,
       passwordHash,
       collegeId: college.id,
-      role: 'STUDENT',
+      role,
+      verified: false,
+      verificationStatus: 'PENDING',
       profile: {
         create: {
           firstName,
           lastName,
-          batchYear: now.getFullYear(),
-          graduationYear: now.getFullYear() + 4,
-          department: 'Not specified',
+          batchYear: currentYear,
+          graduationYear: role === 'STUDENT' ? currentYear + 4 : currentYear,
+          department: 'General',
+          skillTags: [],
+          interestTags: [],
           maxMentees: 3,
         },
       },
     },
-    include: {
-      college: true,
-      profile: true,
-    },
+    include: includeUserShape,
+  })
+
+  await issueOtpForUser({
+    userId: createdUser.id,
+    email: createdUser.email,
+    name,
   })
 
   return sendSuccess(
     res,
     {
-      message: 'Signup successful. Please login with your credentials.',
-      user: buildUserResponse(createdUser),
+      message: 'Signup successful. OTP sent to your email for verification.',
+      requiresOtp: true,
+      user: buildPublicUser(createdUser),
     },
     201,
   )
 })
 
-export const login = asyncHandler(async (req, res) => {
-  const { email, password } = req.body
+export const verifyOtp = asyncHandler(async (req, res) => {
+  const { email, otp } = req.body
   const normalizedEmail = normalizeEmail(email)
 
   const user = await prisma.user.findUnique({
     where: {
       email: normalizedEmail,
     },
-    include: {
-      college: true,
-      profile: true,
+    include: includeUserShape,
+  })
+
+  if (!user) {
+    throw new AppError('User not found for this email.', 404)
+  }
+
+  await verifyUserOtp({
+    userId: user.id,
+    otp,
+  })
+
+  const refreshedUser = await prisma.user.findUnique({
+    where: {
+      id: user.id,
     },
+    include: includeUserShape,
+  })
+
+  return sendSuccess(res, {
+    message: 'Email verified successfully. You can now login.',
+    user: buildPublicUser(refreshedUser),
+  })
+})
+
+export const resendOtp = asyncHandler(async (req, res) => {
+  const { email } = req.body
+  const normalizedEmail = normalizeEmail(email)
+
+  const user = await prisma.user.findUnique({
+    where: {
+      email: normalizedEmail,
+    },
+    include: includeUserShape,
+  })
+
+  if (!user) {
+    throw new AppError('User not found.', 404)
+  }
+
+  if (user.verified) {
+    return sendSuccess(res, {
+      message: 'User is already verified.',
+    })
+  }
+
+  await issueOtpForUser({
+    userId: user.id,
+    email: user.email,
+    name: `${user.profile?.firstName || ''} ${user.profile?.lastName || ''}`.trim(),
+  })
+
+  return sendSuccess(res, {
+    message: 'A fresh OTP has been sent to your email.',
+  })
+})
+
+export const login = asyncHandler(async (req, res) => {
+  const { email, enrollmentNumber, identifier, password } = req.body
+
+  const user = await findUserForLogin({
+    email,
+    enrollmentNumber,
+    identifier,
   })
 
   if (!user || !user.passwordHash) {
-    throw new AppError('Invalid email or password.', 401)
+    throw new AppError('Invalid credentials.', 401)
+  }
+
+  if (!user.verified) {
+    throw new AppError('Please verify OTP before login.', 403)
   }
 
   const now = new Date()
@@ -224,7 +343,7 @@ export const login = asyncHandler(async (req, res) => {
       },
     })
 
-    throw new AppError('Invalid email or password.', 401)
+    throw new AppError('Invalid credentials.', 401)
   }
 
   await prisma.user.update({
@@ -246,7 +365,7 @@ export const login = asyncHandler(async (req, res) => {
   return sendSuccess(res, {
     message: 'Login successful.',
     accessToken,
-    user: buildUserResponse(user),
+    user: buildPublicUser(user),
   })
 })
 
@@ -274,10 +393,7 @@ export const refreshToken = asyncHandler(async (req, res) => {
     },
     include: {
       user: {
-        include: {
-          college: true,
-          profile: true,
-        },
+        include: includeUserShape,
       },
     },
   })
@@ -312,7 +428,7 @@ export const refreshToken = asyncHandler(async (req, res) => {
   return sendSuccess(res, {
     message: 'Token refreshed successfully.',
     accessToken,
-    user: buildUserResponse(storedToken.user),
+    user: buildPublicUser(storedToken.user),
   })
 })
 
@@ -337,7 +453,7 @@ export const logout = asyncHandler(async (req, res) => {
     httpOnly: true,
     sameSite: 'lax',
     secure: env.isProduction,
-    path: '/api/v1/auth',
+    path: '/api',
   })
 
   return sendSuccess(res, {
@@ -347,7 +463,6 @@ export const logout = asyncHandler(async (req, res) => {
 
 export const logoutAllDevices = asyncHandler(async (req, res) => {
   const userId = req.user?.userId
-
   if (!userId) {
     throw new AppError('Unauthorized.', 401)
   }
@@ -377,7 +492,7 @@ export const logoutAllDevices = asyncHandler(async (req, res) => {
     httpOnly: true,
     sameSite: 'lax',
     secure: env.isProduction,
-    path: '/api/v1/auth',
+    path: '/api',
   })
 
   return sendSuccess(res, {
@@ -387,7 +502,6 @@ export const logoutAllDevices = asyncHandler(async (req, res) => {
 
 export const me = asyncHandler(async (req, res) => {
   const userId = req.user?.userId
-
   if (!userId) {
     throw new AppError('Unauthorized.', 401)
   }
@@ -396,10 +510,7 @@ export const me = asyncHandler(async (req, res) => {
     where: {
       id: userId,
     },
-    include: {
-      college: true,
-      profile: true,
-    },
+    include: includeUserShape,
   })
 
   if (!user) {
@@ -407,6 +518,6 @@ export const me = asyncHandler(async (req, res) => {
   }
 
   return sendSuccess(res, {
-    user: buildUserResponse(user),
+    user: buildPublicUser(user),
   })
 })

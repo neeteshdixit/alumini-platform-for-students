@@ -1,75 +1,179 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+import { api } from '../../services/api'
+import { useAuthStore } from '../../store/authStore'
+
+const allStates = [
+  'Andhra Pradesh',
+  'Arunachal Pradesh',
+  'Assam',
+  'Bihar',
+  'Chhattisgarh',
+  'Goa',
+  'Gujarat',
+  'Haryana',
+  'Himachal Pradesh',
+  'Jharkhand',
+  'Karnataka',
+  'Kerala',
+  'Madhya Pradesh',
+  'Maharashtra',
+  'Manipur',
+  'Meghalaya',
+  'Mizoram',
+  'Nagaland',
+  'Odisha',
+  'Punjab',
+  'Rajasthan',
+  'Sikkim',
+  'Tamil Nadu',
+  'Telangana',
+  'Tripura',
+  'Uttar Pradesh',
+  'Uttarakhand',
+  'West Bengal',
+  'Andaman and Nicobar Islands',
+  'Chandigarh',
+  'Dadra and Nagar Haveli and Daman and Diu',
+  'Delhi',
+  'Jammu and Kashmir',
+  'Ladakh',
+  'Lakshadweep',
+  'Puducherry',
+]
 
 const initialForm = {
   fullName: '',
   email: '',
-  institution: 'Select your College',
+  state: '',
+  institution: '',
   password: '',
   confirmPassword: '',
 }
 
-const institutions = [
-  'Select your College',
-  'Harvard University',
-  'Stanford University',
-  'MIT',
-  'University of Oxford',
-]
-
-function readModeFromUrl() {
-  if (typeof window === 'undefined') {
-    return 'login'
+const getReadableError = (error, fallback) => {
+  if (!error?.response) {
+    return 'Unable to connect to server. Ensure backend is running at http://localhost:5000.'
   }
 
-  const pathname = window.location.pathname.toLowerCase()
-  const params = new URLSearchParams(window.location.search)
-  const modeFromQuery = params.get('mode')
+  const fieldErrors = error.response?.data?.details?.fieldErrors
+  if (fieldErrors && typeof fieldErrors === 'object') {
+    const firstFieldError = Object.values(fieldErrors)
+      .flat()
+      .find((message) => typeof message === 'string' && message.trim().length > 0)
 
-  if (
-    modeFromQuery === 'signup' ||
-    pathname === '/signup' ||
-    pathname.startsWith('/signup/')
-  ) {
-    return 'signup'
+    if (firstFieldError) {
+      return firstFieldError
+    }
   }
 
-  return 'login'
+  return error.response?.data?.message || fallback
 }
 
 function AuthCard() {
-  const [mode, setMode] = useState(readModeFromUrl)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const setSession = useAuthStore((state) => state.setSession)
+
   const [form, setForm] = useState(initialForm)
+  const [institutionOptions, setInstitutionOptions] = useState([])
+  const [isLoadingInstitutions, setIsLoadingInstitutions] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [feedback, setFeedback] = useState({ type: '', message: '' })
 
-  const isLogin = mode === 'login'
+  const isLogin = location.pathname !== '/signup'
 
   const submitLabel = useMemo(() => {
     if (isSubmitting) {
       return isLogin ? 'Signing in...' : 'Creating account...'
     }
+
     return isLogin ? 'Login' : 'Create Account'
   }, [isSubmitting, isLogin])
 
   useEffect(() => {
-    const syncMode = () => setMode(readModeFromUrl())
-    window.addEventListener('popstate', syncMode)
-    return () => window.removeEventListener('popstate', syncMode)
-  }, [])
+    if (isLogin) {
+      setInstitutionOptions([])
+      setIsLoadingInstitutions(false)
+      return
+    }
+
+    const state = form.state.trim()
+    if (!state) {
+      setInstitutionOptions([])
+      if (form.institution) {
+        setForm((current) => ({ ...current, institution: '' }))
+      }
+      return
+    }
+
+    let isMounted = true
+    setIsLoadingInstitutions(true)
+
+    api
+      .get('/api/colleges', {
+        params: { state },
+      })
+      .then((response) => {
+        if (!isMounted) return
+
+        const options = response.data?.colleges || []
+        setInstitutionOptions(options)
+
+        const selectedStillExists = options.some(
+          (college) => college.name === form.institution,
+        )
+
+        if (!selectedStillExists) {
+          setForm((current) => ({ ...current, institution: '' }))
+        }
+      })
+      .catch((error) => {
+        if (!isMounted) return
+
+        setInstitutionOptions([])
+        setFeedback({
+          type: 'error',
+          message: getReadableError(
+            error,
+            'Unable to fetch colleges. Please try again.',
+          ),
+        })
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingInstitutions(false)
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [form.state, form.institution, isLogin])
 
   const switchMode = (nextMode) => {
-    setMode(nextMode)
     setFeedback({ type: '', message: '' })
-    const targetPath = nextMode === 'signup' ? '/signup' : '/login'
-    if (typeof window !== 'undefined' && window.location.pathname !== targetPath) {
-      window.history.pushState({}, '', targetPath)
+    if (nextMode === 'signup') {
+      navigate('/signup')
+      return
     }
+
+    navigate('/login')
   }
 
   const updateField = (field, value) => {
-    setForm((current) => ({ ...current, [field]: value }))
+    setForm((current) => {
+      if (field === 'state') {
+        return {
+          ...current,
+          state: value,
+          institution: '',
+        }
+      }
+
+      return { ...current, [field]: value }
+    })
   }
 
   const handleSubmit = async (event) => {
@@ -84,46 +188,42 @@ function AuthCard() {
     setIsSubmitting(true)
 
     try {
-      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup'
-      const payload = isLogin
-        ? { email: form.email, password: form.password }
-        : {
-            fullName: form.fullName,
-            email: form.email,
-            institution: form.institution,
-            password: form.password,
-            confirmPassword: form.confirmPassword,
-          }
+      if (isLogin) {
+        const response = await api.post('/api/auth/login', {
+          email: form.email,
+          password: form.password,
+        })
 
-      const response = await fetch(`${apiBaseUrl}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        setSession({
+          user: response.data.user,
+          accessToken: response.data.accessToken,
+        })
+
+        navigate('/dashboard', { replace: true })
+        return
+      }
+
+      await api.post('/api/auth/signup', {
+        fullName: form.fullName,
+        email: form.email,
+        state: form.state,
+        institution: form.institution,
+        password: form.password,
+        confirmPassword: form.confirmPassword,
       })
 
-      const responseData = await response.json().catch(() => ({}))
-
-      if (!response.ok) {
-        throw new Error(responseData.message || 'Something went wrong.')
-      }
-
-      if (isLogin) {
-        setFeedback({ type: 'success', message: 'Login successful. Redirecting...' })
-        window.setTimeout(() => {
-          window.location.href = '/dashboard'
-        }, 400)
-      } else {
-        setFeedback({
-          type: 'success',
-          message: 'Signup successful. Please login with your credentials.',
-        })
-        setForm(initialForm)
-        switchMode('login')
-      }
+      setFeedback({
+        type: 'success',
+        message: 'Signup successful. Please login with your credentials.',
+      })
+      setForm(initialForm)
+      window.setTimeout(() => {
+        navigate('/login')
+      }, 600)
     } catch (error) {
       setFeedback({
         type: 'error',
-        message: error instanceof Error ? error.message : 'Request failed.',
+        message: getReadableError(error, 'Request failed. Please try again.'),
       })
     } finally {
       setIsSubmitting(false)
@@ -211,6 +311,39 @@ function AuthCard() {
             <div className="space-y-2">
               <label
                 className="text-xs font-bold tracking-widest text-on-surface-variant uppercase dark:text-slate-500"
+                htmlFor="state"
+              >
+                State
+              </label>
+              <div className="relative">
+                <span className="material-symbols-outlined absolute top-1/2 left-3 -translate-y-1/2 text-lg text-slate-400">
+                  location_on
+                </span>
+                <select
+                  className="w-full appearance-none rounded-lg border-0 bg-surface-container-low py-3 pr-4 pl-10 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-500/20"
+                  id="state"
+                  name="state"
+                  onChange={(event) => updateField('state', event.target.value)}
+                  value={form.state}
+                >
+                  <option value="">Select State</option>
+                  {allStates.map((state) => (
+                    <option key={state} value={state}>
+                      {state}
+                    </option>
+                  ))}
+                </select>
+                <span className="material-symbols-outlined pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-slate-400">
+                  expand_more
+                </span>
+              </div>
+            </div>
+          )}
+
+          {!isLogin && (
+            <div className="space-y-2">
+              <label
+                className="text-xs font-bold tracking-widest text-on-surface-variant uppercase dark:text-slate-500"
                 htmlFor="institution"
               >
                 Institution
@@ -220,15 +353,23 @@ function AuthCard() {
                   school
                 </span>
                 <select
-                  className="w-full appearance-none rounded-lg border-0 bg-surface-container-low py-3 pr-4 pl-10 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-500/20"
+                  className="w-full appearance-none rounded-lg border-0 bg-surface-container-low py-3 pr-4 pl-10 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-500/20"
+                  disabled={!form.state || isLoadingInstitutions}
                   id="institution"
                   name="institution"
                   onChange={(event) => updateField('institution', event.target.value)}
                   value={form.institution}
                 >
-                  {institutions.map((institution) => (
-                    <option key={institution} value={institution}>
-                      {institution}
+                  <option value="">
+                    {!form.state
+                      ? 'Select State first'
+                      : isLoadingInstitutions
+                        ? 'Loading colleges...'
+                        : 'Select your College'}
+                  </option>
+                  {institutionOptions.map((college) => (
+                    <option key={college.id} value={college.name}>
+                      {college.name}
                     </option>
                   ))}
                 </select>

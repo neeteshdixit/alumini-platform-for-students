@@ -6,6 +6,6 @@ export const getRefreshCookieOptions = (expires) => ({
   httpOnly: true,
   sameSite: 'lax',
   secure: env.isProduction,
-  path: '/api/v1/auth',
+  path: '/api',
   expires,
 })
