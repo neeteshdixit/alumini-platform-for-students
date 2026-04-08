@@ -31,13 +31,13 @@ function Hero() {
           <div className="flex flex-col gap-4 pt-4 sm:flex-row">
             <a
               className="editorial-gradient rounded-xl px-8 py-4 text-center font-bold text-on-primary shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95"
-              href="/auth?mode=signup"
+              href="/signup"
             >
               Join as Alumni
             </a>
             <a
               className="rounded-xl bg-surface-container-highest px-8 py-4 text-center font-bold text-on-surface transition-all hover:bg-surface-container-high active:scale-95"
-              href="/auth?mode=login"
+              href="/login"
             >
               Join as Student
             </a>

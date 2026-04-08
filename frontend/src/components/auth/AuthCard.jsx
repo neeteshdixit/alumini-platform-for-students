@@ -1,4 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+
+const initialForm = {
+  fullName: '',
+  email: '',
+  institution: 'Select your College',
+  password: '',
+  confirmPassword: '',
+}
 
 const institutions = [
   'Select your College',
@@ -8,16 +18,20 @@ const institutions = [
   'University of Oxford',
 ]
 
-function getInitialMode() {
+function readModeFromUrl() {
   if (typeof window === 'undefined') {
     return 'login'
   }
 
+  const pathname = window.location.pathname.toLowerCase()
   const params = new URLSearchParams(window.location.search)
   const modeFromQuery = params.get('mode')
-  const pathname = window.location.pathname.toLowerCase()
 
-  if (modeFromQuery === 'signup' || pathname === '/signup') {
+  if (
+    modeFromQuery === 'signup' ||
+    pathname === '/signup' ||
+    pathname.startsWith('/signup/')
+  ) {
     return 'signup'
   }
 
@@ -25,13 +39,96 @@ function getInitialMode() {
 }
 
 function AuthCard() {
-  const [mode, setMode] = useState(getInitialMode)
+  const [mode, setMode] = useState(readModeFromUrl)
+  const [form, setForm] = useState(initialForm)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [feedback, setFeedback] = useState({ type: '', message: '' })
+
   const isLogin = mode === 'login'
 
-  const submitLabel = useMemo(
-    () => (isLogin ? 'Signing in...' : 'Creating account...'),
-    [isLogin],
-  )
+  const submitLabel = useMemo(() => {
+    if (isSubmitting) {
+      return isLogin ? 'Signing in...' : 'Creating account...'
+    }
+    return isLogin ? 'Login' : 'Create Account'
+  }, [isSubmitting, isLogin])
+
+  useEffect(() => {
+    const syncMode = () => setMode(readModeFromUrl())
+    window.addEventListener('popstate', syncMode)
+    return () => window.removeEventListener('popstate', syncMode)
+  }, [])
+
+  const switchMode = (nextMode) => {
+    setMode(nextMode)
+    setFeedback({ type: '', message: '' })
+    const targetPath = nextMode === 'signup' ? '/signup' : '/login'
+    if (typeof window !== 'undefined' && window.location.pathname !== targetPath) {
+      window.history.pushState({}, '', targetPath)
+    }
+  }
+
+  const updateField = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }))
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setFeedback({ type: '', message: '' })
+
+    if (!isLogin && form.password !== form.confirmPassword) {
+      setFeedback({ type: 'error', message: 'Passwords do not match.' })
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup'
+      const payload = isLogin
+        ? { email: form.email, password: form.password }
+        : {
+            fullName: form.fullName,
+            email: form.email,
+            institution: form.institution,
+            password: form.password,
+            confirmPassword: form.confirmPassword,
+          }
+
+      const response = await fetch(`${apiBaseUrl}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const responseData = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(responseData.message || 'Something went wrong.')
+      }
+
+      if (isLogin) {
+        setFeedback({ type: 'success', message: 'Login successful. Redirecting...' })
+        window.setTimeout(() => {
+          window.location.href = '/dashboard'
+        }, 400)
+      } else {
+        setFeedback({
+          type: 'success',
+          message: 'Signup successful. Please login with your credentials.',
+        })
+        setForm(initialForm)
+        switchMode('login')
+      }
+    } catch (error) {
+      setFeedback({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Request failed.',
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <div className="overflow-hidden rounded-xl bg-surface-container-lowest shadow-[0_20px_50px_rgba(23,28,31,0.06)] dark:bg-slate-900 dark:shadow-[0_20px_50px_rgba(0,0,0,0.3)]">
@@ -42,7 +139,7 @@ function AuthCard() {
               ? 'border-primary font-bold text-primary dark:border-blue-400 dark:text-blue-400'
               : 'border-transparent font-semibold text-slate-400 hover:text-primary dark:hover:text-blue-300'
           }`}
-          onClick={() => setMode('login')}
+          onClick={() => switchMode('login')}
           type="button"
         >
           Login
@@ -53,7 +150,7 @@ function AuthCard() {
               ? 'border-primary font-bold text-primary dark:border-blue-400 dark:text-blue-400'
               : 'border-transparent font-semibold text-slate-400 hover:text-primary dark:hover:text-blue-300'
           }`}
-          onClick={() => setMode('signup')}
+          onClick={() => switchMode('signup')}
           type="button"
         >
           Sign Up
@@ -61,7 +158,7 @@ function AuthCard() {
       </div>
 
       <div className="p-8">
-        <form className="space-y-6">
+        <form className="space-y-6" onSubmit={handleSubmit}>
           {!isLogin && (
             <div className="space-y-2">
               <label
@@ -75,10 +172,13 @@ function AuthCard() {
                   person
                 </span>
                 <input
+                  autoComplete="name"
                   className="w-full rounded-lg border-0 bg-surface-container-low py-3 pr-4 pl-10 text-sm text-on-surface outline-none transition-all placeholder:text-slate-400 focus:ring-2 focus:ring-primary/20 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-500/20"
                   id="full-name"
+                  onChange={(event) => updateField('fullName', event.target.value)}
                   placeholder="Your full name"
                   type="text"
+                  value={form.fullName}
                 />
               </div>
             </div>
@@ -96,41 +196,48 @@ function AuthCard() {
                 mail
               </span>
               <input
+                autoComplete="email"
                 className="w-full rounded-lg border-0 bg-surface-container-low py-3 pr-4 pl-10 text-sm text-on-surface outline-none transition-all placeholder:text-slate-400 focus:ring-2 focus:ring-primary/20 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-500/20"
                 id="email"
+                onChange={(event) => updateField('email', event.target.value)}
                 placeholder="alumni@university.edu"
                 type="email"
+                value={form.email}
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label
-              className="text-xs font-bold tracking-widest text-on-surface-variant uppercase dark:text-slate-500"
-              htmlFor="institution"
-            >
-              Institution
-            </label>
-            <div className="relative">
-              <span className="material-symbols-outlined absolute top-1/2 left-3 -translate-y-1/2 text-lg text-slate-400">
-                school
-              </span>
-              <select
-                className="w-full appearance-none rounded-lg border-0 bg-surface-container-low py-3 pr-4 pl-10 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-500/20"
-                id="institution"
-                name="institution"
+          {!isLogin && (
+            <div className="space-y-2">
+              <label
+                className="text-xs font-bold tracking-widest text-on-surface-variant uppercase dark:text-slate-500"
+                htmlFor="institution"
               >
-                {institutions.map((institution) => (
-                  <option key={institution} value={institution}>
-                    {institution}
-                  </option>
-                ))}
-              </select>
-              <span className="material-symbols-outlined pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-slate-400">
-                expand_more
-              </span>
+                Institution
+              </label>
+              <div className="relative">
+                <span className="material-symbols-outlined absolute top-1/2 left-3 -translate-y-1/2 text-lg text-slate-400">
+                  school
+                </span>
+                <select
+                  className="w-full appearance-none rounded-lg border-0 bg-surface-container-low py-3 pr-4 pl-10 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-500/20"
+                  id="institution"
+                  name="institution"
+                  onChange={(event) => updateField('institution', event.target.value)}
+                  value={form.institution}
+                >
+                  {institutions.map((institution) => (
+                    <option key={institution} value={institution}>
+                      {institution}
+                    </option>
+                  ))}
+                </select>
+                <span className="material-symbols-outlined pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-slate-400">
+                  expand_more
+                </span>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -154,10 +261,13 @@ function AuthCard() {
                 lock
               </span>
               <input
+                autoComplete={isLogin ? 'current-password' : 'new-password'}
                 className="w-full rounded-lg border-0 bg-surface-container-low py-3 pr-4 pl-10 text-sm text-on-surface outline-none transition-all placeholder:text-slate-400 focus:ring-2 focus:ring-primary/20 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-500/20"
                 id="password"
+                onChange={(event) => updateField('password', event.target.value)}
                 placeholder="........"
                 type="password"
+                value={form.password}
               />
             </div>
           </div>
@@ -175,40 +285,58 @@ function AuthCard() {
                   verified_user
                 </span>
                 <input
+                  autoComplete="new-password"
                   className="w-full rounded-lg border-0 bg-surface-container-low py-3 pr-4 pl-10 text-sm text-on-surface outline-none transition-all placeholder:text-slate-400 focus:ring-2 focus:ring-primary/20 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-500/20"
                   id="confirm-password"
+                  onChange={(event) => updateField('confirmPassword', event.target.value)}
                   placeholder="........"
                   type="password"
+                  value={form.confirmPassword}
                 />
               </div>
             </div>
           )}
 
+          {feedback.message && (
+            <div
+              className={`rounded-lg px-4 py-3 text-sm font-medium ${
+                feedback.type === 'success'
+                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                  : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+              }`}
+            >
+              {feedback.message}
+            </div>
+          )}
+
           <button
-            className="flex w-full items-center justify-center gap-3 rounded-lg bg-gradient-to-br from-primary to-primary-container py-4 text-sm font-bold tracking-wide text-on-primary shadow-lg shadow-primary/20 transition-all hover:shadow-primary/30 active:scale-95"
+            className="flex w-full items-center justify-center gap-3 rounded-lg bg-gradient-to-br from-primary to-primary-container py-4 text-sm font-bold tracking-wide text-on-primary shadow-lg shadow-primary/20 transition-all hover:shadow-primary/30 active:scale-95 disabled:cursor-not-allowed disabled:opacity-80"
+            disabled={isSubmitting}
             type="submit"
           >
-            <svg
-              aria-hidden="true"
-              className="h-4 w-4 animate-spin text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                fill="currentColor"
-              />
-            </svg>
+            {isSubmitting && (
+              <svg
+                aria-hidden="true"
+                className="h-4 w-4 animate-spin text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  fill="currentColor"
+                />
+              </svg>
+            )}
             {submitLabel}
           </button>
 

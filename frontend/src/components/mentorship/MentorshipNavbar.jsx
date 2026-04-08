@@ -8,7 +8,7 @@ function MentorshipNavbar() {
         <div className="hidden md:flex gap-6 font-inter tracking-tight">
           <a
             className="text-slate-500 dark:text-slate-400 hover:text-blue-800 transition-colors"
-            href="#"
+            href="/search"
           >
             Directory
           </a>

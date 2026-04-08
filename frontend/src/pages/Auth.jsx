@@ -1,6 +1,6 @@
-import AuthCard from '../components/AuthCard'
-import AuthFooter from '../components/AuthFooter'
-import AuthTrustLogos from '../components/AuthTrustLogos'
+import AuthCard from '../components/auth/AuthCard'
+import AuthFooter from '../components/auth/AuthFooter'
+import AuthTrustLogos from '../components/auth/AuthTrustLogos'
 
 function Auth() {
   return (

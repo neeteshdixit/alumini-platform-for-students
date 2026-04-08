@@ -1,8 +1,8 @@
-import MentorshipNavbar from '../components/MentorshipNavbar'
-import MentorshipSidebar from '../components/MentorshipSidebar'
-import MentorshipCard from '../components/MentorshipCard'
-import MentorshipRequestCard from '../components/MentorshipRequestCard'
-import MentorshipFooter from '../components/MentorshipFooter'
+import MentorshipNavbar from '../components/mentorship/MentorshipNavbar'
+import MentorshipSidebar from '../components/mentorship/MentorshipSidebar'
+import MentorshipCard from '../components/mentorship/MentorshipCard'
+import MentorshipRequestCard from '../components/mentorship/MentorshipRequestCard'
+import MentorshipFooter from '../components/mentorship/MentorshipFooter'
 
 function Mentorship() {
   return (
@@ -47,7 +47,7 @@ function Mentorship() {
                 avatarSrc="https://lh3.googleusercontent.com/aida-public/AB6AXuC7CI4Fms0qo7NFX9eRTI2ojpIPfKcbFbQe3maW05baKMamC6lSrACo5Hh7Iw0w5e8DWutH0ruCW1VSvgnKvRCTqAzk4H8nfDJCahnrqp5S1N8eqOjIkVQFpRCO17GgQz9dMi7ziBUSEMsUQsEtLWzguetEUXEr-hn4Jx4HxitJ2EEKzJIJOr35iZZj1f9GkPKGL4PSZHWXK21nEr9vSjIkbpIuYvps9vbL3A86TQbJmjIPSiC-rdPWi87fWlqcLj-d5Xm0-Ev65Tw"
                 avatarAlt="Mentee avatar"
                 title="Elena Rodriguez"
-                subtitle="Class of '22 • Software Architecture"
+                subtitle="Class of '22  |  Software Architecture"
                 badgeText="WEEK 6 OF 12"
                 badgeClasses="px-3 py-1 bg-primary/5 text-primary text-xs font-bold rounded-full border border-primary/10"
                 wrapperClass="border-primary dark:border-primary-fixed"
@@ -93,7 +93,7 @@ function Mentorship() {
                 avatarSrc="https://lh3.googleusercontent.com/aida-public/AB6AXuDNvV362a9WdjSdZGTPlW5tZFN3nGJ1qwhbYA7Are0yH1uyaglMAEMnQkKPQa82KcQ3MvUDwcOw6hvkMcqGLm4ZQjt991n4DWjlf4P6zFQCjZdzh5sa9aX4nVg0KXEh_9d2jpWSfN6Ui7U_3hq_PYnol7Cmo66IFiuT3zyx0t2PI20RtJRpI8jY70gXRi3hTlWLrPjJR2bG7Tl9JxqwvCxOnZehwDuSUZaOwO97scQcEIiG-CsURZn9QgmM8l1I9fAi_Si-61NZJgg"
                 avatarAlt="Mentor avatar"
                 title="Dr. Marcus Thorne"
-                subtitle="Mentor • Fintech Leadership"
+                subtitle="Mentor  |  Fintech Leadership"
                 badgeText="UPCOMING"
                 badgeClasses="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs font-bold rounded-full"
                 wrapperClass="border-slate-300 dark:border-slate-700 shadow-sm opacity-90"

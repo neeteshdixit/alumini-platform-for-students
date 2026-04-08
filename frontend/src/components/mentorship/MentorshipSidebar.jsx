@@ -11,28 +11,28 @@ function MentorshipSidebar() {
       <div className="flex flex-col gap-2 flex-grow">
         <a
           className="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:translate-x-1 transition-all rounded-lg"
-          href="#"
+          href="/dashboard"
         >
           <span className="material-symbols-outlined">dashboard</span>
           Dashboard
         </a>
         <a
           className="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:translate-x-1 transition-all rounded-lg"
-          href="#"
+          href="/search"
         >
           <span className="material-symbols-outlined">search</span>
           Search
         </a>
         <a
           className="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:translate-x-1 transition-all rounded-lg"
-          href="#"
+          href="/messages"
         >
           <span className="material-symbols-outlined">chat</span>
           Messages
         </a>
         <a
           className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-800 text-blue-900 dark:text-white rounded-lg shadow-sm font-semibold"
-          href="#"
+          href="/mentorship"
         >
           <span
             className="material-symbols-outlined"
@@ -44,7 +44,7 @@ function MentorshipSidebar() {
         </a>
         <a
           className="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:translate-x-1 transition-all rounded-lg"
-          href="#"
+          href="/profile"
         >
           <span className="material-symbols-outlined">person</span>
           My Profile

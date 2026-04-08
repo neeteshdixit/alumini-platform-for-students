@@ -1,9 +1,9 @@
-import CTA from '../components/CTA'
-import Features from '../components/Features'
-import Footer from '../components/Footer'
-import Hero from '../components/Hero'
-import Navbar from '../components/Navbar'
-import Testimonials from '../components/Testimonials'
+import CTA from '../components/landing/CTA'
+import Features from '../components/landing/Features'
+import Footer from '../components/landing/Footer'
+import Hero from '../components/landing/Hero'
+import Navbar from '../components/landing/Navbar'
+import Testimonials from '../components/landing/Testimonials'
 
 function Landing() {
   return (
