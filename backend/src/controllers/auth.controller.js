@@ -181,6 +181,35 @@ const includeUserShape = {
   profile: true,
 }
 
+const isAccountVerified = (user) => {
+  return Boolean(user?.verified || user?.verificationStatus === 'APPROVED')
+}
+
+const normalizeVerificationStateIfNeeded = async (user) => {
+  if (!user) {
+    return user
+  }
+
+  const shouldNormalize =
+    (user.verificationStatus === 'APPROVED' && !user.verified) ||
+    (user.verified && user.verificationStatus !== 'APPROVED')
+
+  if (!shouldNormalize) {
+    return user
+  }
+
+  return prisma.user.update({
+    where: {
+      id: user.id,
+    },
+    data: {
+      verified: true,
+      verificationStatus: 'APPROVED',
+    },
+    include: includeUserShape,
+  })
+}
+
 export const signup = asyncHandler(async (req, res) => {
   const {
     role,
@@ -324,7 +353,7 @@ export const resendOtp = asyncHandler(async (req, res) => {
     throw new AppError('User not found.', 404)
   }
 
-  if (user.verified) {
+  if (isAccountVerified(user)) {
     return sendSuccess(res, {
       message: 'User is already verified.',
     })
@@ -361,11 +390,13 @@ export const login = asyncHandler(async (req, res) => {
     throw new AppError('Invalid credentials.', 401)
   }
 
-  if (!user.verified) {
+  const normalizedUser = await normalizeVerificationStateIfNeeded(user)
+
+  if (!isAccountVerified(normalizedUser)) {
     const otpIssue = await issueOtpForUser({
-      userId: user.id,
-      email: user.email,
-      name: `${user.profile?.firstName || ''} ${user.profile?.lastName || ''}`.trim(),
+      userId: normalizedUser.id,
+      email: normalizedUser.email,
+      name: `${normalizedUser.profile?.firstName || ''} ${normalizedUser.profile?.lastName || ''}`.trim(),
     })
 
     throw new AppError(
@@ -375,7 +406,7 @@ export const login = asyncHandler(async (req, res) => {
       403,
       {
         requiresOtp: true,
-        email: user.email,
+        email: normalizedUser.email,
         ...(env.isProduction || !otpIssue.debugOtp
           ? {}
           : {
@@ -386,19 +417,19 @@ export const login = asyncHandler(async (req, res) => {
   }
 
   const now = new Date()
-  if (user.lockedUntil && user.lockedUntil > now) {
+  if (normalizedUser.lockedUntil && normalizedUser.lockedUntil > now) {
     throw new AppError('Account is temporarily locked. Please try again later.', 423)
   }
 
-  const passwordMatches = await bcrypt.compare(password, user.passwordHash)
+  const passwordMatches = await bcrypt.compare(password, normalizedUser.passwordHash)
 
   if (!passwordMatches) {
-    const failedAttempts = user.failedLoginAttempts + 1
+    const failedAttempts = normalizedUser.failedLoginAttempts + 1
     const lockReached = failedAttempts >= env.authLoginMaxAttempts
 
     await prisma.user.update({
       where: {
-        id: user.id,
+        id: normalizedUser.id,
       },
       data: {
         failedLoginAttempts: lockReached ? 0 : failedAttempts,
@@ -413,7 +444,7 @@ export const login = asyncHandler(async (req, res) => {
 
   await prisma.user.update({
     where: {
-      id: user.id,
+      id: normalizedUser.id,
     },
     data: {
       failedLoginAttempts: 0,
@@ -422,7 +453,7 @@ export const login = asyncHandler(async (req, res) => {
   })
 
   const accessToken = await issueAuthSession({
-    user,
+    user: normalizedUser,
     req,
     res,
   })
@@ -430,7 +461,7 @@ export const login = asyncHandler(async (req, res) => {
   return sendSuccess(res, {
     message: 'Login successful.',
     accessToken,
-    user: buildPublicUser(user),
+    user: buildPublicUser(normalizedUser),
   })
 })
 

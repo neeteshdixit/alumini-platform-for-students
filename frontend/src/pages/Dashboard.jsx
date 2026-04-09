@@ -73,6 +73,9 @@ function SuggestionCard({ user, onConnect, isConnecting }) {
           <p className="text-sm text-slate-600">
             {user.role} | {user.collegeName}
           </p>
+          <p className="text-xs text-slate-600">
+            Domain: {user.domain || 'both'}
+          </p>
         </div>
         <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600">
           {user.connectionStatus}
@@ -400,6 +403,9 @@ function Dashboard() {
               <p className="text-sm text-slate-600">
                 Role: {userState.data?.role || 'Not available'}
               </p>
+              <p className="text-sm text-slate-600">
+                Domain: {userState.data?.domain || 'both'}
+              </p>
               <p className="mt-2 text-sm text-slate-600">
                 Skills:{' '}
                 {userState.data?.skills?.length
@@ -411,6 +417,9 @@ function Dashboard() {
                 {userState.data?.interests?.length
                   ? userState.data.interests.join(', ')
                   : 'Data not available right now'}
+              </p>
+              <p className="text-sm text-slate-600">
+                Bio: {userState.data?.bio || 'Data not available right now'}
               </p>
             </article>
 

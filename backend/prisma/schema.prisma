@@ -137,7 +137,10 @@ model Profile {
   firstName         String     @map("first_name")
   lastName          String     @map("last_name")
   avatarUrl         String?    @map("avatar_url")
-  bio               String?    @db.VarChar(500)
+  bio               String?    @db.VarChar(2000)
+  domain            String     @default("both")
+  internships       String?    @db.VarChar(3000)
+  projects          String?    @db.VarChar(4000)
   batchYear         Int        @map("batch_year")
   graduationYear    Int?       @map("graduation_year")
   department        String
@@ -145,6 +148,7 @@ model Profile {
   company           String?
   location          String?
   linkedinUrl       String?    @map("linkedin_url")
+  githubUrl         String?    @map("github_url")
   portfolioUrl      String?    @map("portfolio_url")
   openToMentorship  Boolean    @default(false) @map("open_to_mentorship")
   maxMentees        Int        @default(3) @map("max_mentees")

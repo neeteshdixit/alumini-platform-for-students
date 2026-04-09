@@ -112,6 +112,9 @@ function Search() {
               </div>
               <p className="text-sm text-slate-700">{user.role}</p>
               <p className="text-xs text-slate-600">{user.collegeName}</p>
+              <p className="text-xs text-slate-600">
+                <span className="font-semibold">Domain:</span> {user.domain || 'both'}
+              </p>
               <p className="mt-2 text-xs text-slate-600">
                 <span className="font-semibold">Skills:</span>{' '}
                 {user.skills.length ? user.skills.join(', ') : 'Not added'}
@@ -120,6 +123,38 @@ function Search() {
                 <span className="font-semibold">Interests:</span>{' '}
                 {user.interests.length ? user.interests.join(', ') : 'Not added'}
               </p>
+              <p className="text-xs text-slate-600">
+                <span className="font-semibold">Internship:</span>{' '}
+                {user.internships || 'Not added'}
+              </p>
+              <p className="text-xs text-slate-600">
+                <span className="font-semibold">Projects:</span>{' '}
+                {user.projects || 'Not added'}
+              </p>
+              {(user.linkedinUrl || user.githubUrl) && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {user.linkedinUrl && (
+                    <a
+                      className="rounded-lg border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700"
+                      href={user.linkedinUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      LinkedIn
+                    </a>
+                  )}
+                  {user.githubUrl && (
+                    <a
+                      className="rounded-lg border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700"
+                      href={user.githubUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      GitHub
+                    </a>
+                  )}
+                </div>
+              )}
               <div className="mt-3 flex flex-wrap gap-2">
                 {(user.connectionStatus === 'NONE' ||
                   user.connectionStatus === 'REJECTED') && (

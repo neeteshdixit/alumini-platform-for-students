@@ -67,9 +67,17 @@ function AppShell({ title, children, actions = null }) {
               <p className="text-sm font-bold text-slate-800">{user?.name || 'User'}</p>
               <p className="text-xs text-slate-500">{user?.collegeName || 'College'}</p>
             </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 font-bold text-blue-900">
-              {getInitial(user?.name)}
-            </div>
+            {user?.profileImage || user?.avatarUrl ? (
+              <img
+                alt={user?.name || 'User'}
+                className="h-9 w-9 rounded-full border border-slate-200 object-cover"
+                src={user.profileImage || user.avatarUrl}
+              />
+            ) : (
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 font-bold text-blue-900">
+                {getInitial(user?.name)}
+              </div>
+            )}
             <button
               className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
               onClick={handleLogout}

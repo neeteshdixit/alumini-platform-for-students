@@ -2,6 +2,15 @@ import { api } from './api'
 
 const getData = (response) => response.data
 
+const fileToDataUrl = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('Unable to read file.'))
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.readAsDataURL(file)
+  })
+}
+
 export const signup = (payload) => {
   return api.post('/api/signup', payload).then(getData)
 }
@@ -23,7 +32,7 @@ export const logout = () => {
 }
 
 export const getMe = () => {
-  return api.get('/api/me').then(getData)
+  return api.get('/api/user/me').then(getData)
 }
 
 export const getUserSuggestions = async () => {
@@ -54,7 +63,15 @@ export const getUserSuggestions = async () => {
 }
 
 export const updateMe = (payload) => {
-  return api.put('/api/me', payload).then(getData)
+  return api.put('/api/user/update', payload).then(getData)
+}
+
+export const deleteMe = (payload) => {
+  return api
+    .delete('/api/me', {
+      data: payload,
+    })
+    .then(getData)
 }
 
 export const getSameCollegeUsers = () => {
@@ -95,4 +112,14 @@ export const createPost = (payload) => {
 
 export const getPosts = () => {
   return api.get('/api/posts').then(getData)
+}
+
+export const uploadProfileImage = async (file) => {
+  const fileData = await fileToDataUrl(file)
+  return api
+    .post('/api/upload', {
+      fileName: file?.name || 'profile-image',
+      fileData,
+    })
+    .then(getData)
 }
