@@ -323,15 +323,16 @@ function Profile() {
         </div>
       )}
 
-      <EditProfileModal
-        initialData={me}
-        isOpen={isEditOpen}
-        isSaving={updateMutation.isPending}
-        isUploadingImage={uploadMutation.isPending}
-        onClose={() => setIsEditOpen(false)}
-        onSave={(payload) => updateMutation.mutate(payload)}
-        onUploadImage={async (file) => uploadMutation.mutateAsync(file)}
-      />
+      {isEditOpen && (
+        <EditProfileModal
+          initialData={me}
+          isSaving={updateMutation.isPending}
+          isUploadingImage={uploadMutation.isPending}
+          onClose={() => setIsEditOpen(false)}
+          onSave={(payload) => updateMutation.mutate(payload)}
+          onUploadImage={async (file) => uploadMutation.mutateAsync(file)}
+        />
+      )}
     </AppShell>
   )
 }

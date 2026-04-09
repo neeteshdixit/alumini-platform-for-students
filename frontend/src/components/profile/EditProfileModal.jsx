@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 const toCsv = (items = []) => items.join(', ')
 
@@ -29,7 +29,6 @@ const domainOptions = [
 ]
 
 function EditProfileModal({
-  isOpen,
   initialData,
   isSaving,
   isUploadingImage,
@@ -37,31 +36,23 @@ function EditProfileModal({
   onSave,
   onUploadImage,
 }) {
-  const [form, setForm] = useState(initialFormState)
+  const [form, setForm] = useState({
+    ...initialFormState,
+    name: initialData?.name || '',
+    domain: initialData?.domain || 'both',
+    skills: toCsv(initialData?.skills || []),
+    interests: toCsv(initialData?.interests || []),
+    internships: initialData?.internships || '',
+    projects: initialData?.projects || '',
+    bio: initialData?.bio || '',
+    linkedinUrl: initialData?.linkedinUrl || '',
+    githubUrl: initialData?.githubUrl || '',
+    profileImage: initialData?.profileImage || initialData?.avatarUrl || '',
+  })
   const [localError, setLocalError] = useState('')
-
-  useEffect(() => {
-    if (!isOpen) return
-
-    setForm({
-      name: initialData?.name || '',
-      domain: initialData?.domain || 'both',
-      skills: toCsv(initialData?.skills || []),
-      interests: toCsv(initialData?.interests || []),
-      internships: initialData?.internships || '',
-      projects: initialData?.projects || '',
-      bio: initialData?.bio || '',
-      linkedinUrl: initialData?.linkedinUrl || '',
-      githubUrl: initialData?.githubUrl || '',
-      profileImage: initialData?.profileImage || initialData?.avatarUrl || '',
-    })
-    setLocalError('')
-  }, [initialData, isOpen])
 
   const skillsPreview = useMemo(() => toArray(form.skills), [form.skills])
   const interestsPreview = useMemo(() => toArray(form.interests), [form.interests])
-
-  if (!isOpen) return null
 
   return (
     <div className="modal modal-open" role="dialog">
