@@ -12,6 +12,11 @@ export const useAuthStore = create(
           accessToken: accessToken || '',
         })
       },
+      setUser: (user) => {
+        set({
+          user: user || null,
+        })
+      },
       setAccessToken: (accessToken) => {
         set({
           accessToken: accessToken || '',

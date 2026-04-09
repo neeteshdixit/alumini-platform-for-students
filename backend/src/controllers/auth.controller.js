@@ -77,6 +77,18 @@ const findCollegeByName = async (collegeName) => {
   })
 }
 
+const findCollegeByEmailDomain = async (emailDomain) => {
+  if (!emailDomain) {
+    return null
+  }
+
+  return prisma.college.findUnique({
+    where: {
+      emailDomain,
+    },
+  })
+}
+
 const ensureCollege = async ({ collegeId, collegeName, email }) => {
   if (collegeId) {
     const byId = await prisma.college.findUnique({
@@ -99,12 +111,29 @@ const ensureCollege = async ({ collegeId, collegeName, email }) => {
     }
 
     const emailDomain = email.includes('@') ? email.split('@')[1] : null
-    return prisma.college.create({
-      data: {
-        name: collegeName.trim(),
-        emailDomain,
-      },
-    })
+    const existingByDomain = await findCollegeByEmailDomain(emailDomain)
+    if (existingByDomain) {
+      return existingByDomain
+    }
+
+    try {
+      return await prisma.college.create({
+        data: {
+          name: collegeName.trim(),
+          emailDomain,
+        },
+      })
+    } catch (error) {
+      // Handle parallel signups trying to create the same emailDomain.
+      if (error?.code === 'P2002' && emailDomain) {
+        const raceWinnerCollege = await findCollegeByEmailDomain(emailDomain)
+        if (raceWinnerCollege) {
+          return raceWinnerCollege
+        }
+      }
+
+      throw error
+    }
   }
 
   throw new AppError('collegeId or collegeName is required.', 400)
@@ -221,19 +250,28 @@ export const signup = asyncHandler(async (req, res) => {
     include: includeUserShape,
   })
 
-  await issueOtpForUser({
+  const otpIssue = await issueOtpForUser({
     userId: createdUser.id,
     email: createdUser.email,
     name,
   })
 
+  const signupResponse = {
+    message: otpIssue.delivery?.delivered
+      ? 'Signup successful. OTP sent to your email for verification.'
+      : 'Signup successful. OTP is ready on your verification screen.',
+    requiresOtp: true,
+    user: buildPublicUser(createdUser),
+    ...(env.isProduction || !otpIssue.debugOtp
+      ? {}
+      : {
+          debugOtp: otpIssue.debugOtp,
+        }),
+  }
+
   return sendSuccess(
     res,
-    {
-      message: 'Signup successful. OTP sent to your email for verification.',
-      requiresOtp: true,
-      user: buildPublicUser(createdUser),
-    },
+    signupResponse,
     201,
   )
 })
@@ -292,14 +330,21 @@ export const resendOtp = asyncHandler(async (req, res) => {
     })
   }
 
-  await issueOtpForUser({
+  const otpIssue = await issueOtpForUser({
     userId: user.id,
     email: user.email,
     name: `${user.profile?.firstName || ''} ${user.profile?.lastName || ''}`.trim(),
   })
 
   return sendSuccess(res, {
-    message: 'A fresh OTP has been sent to your email.',
+    message: otpIssue.delivery?.delivered
+      ? 'A fresh OTP has been sent to your email.'
+      : 'A fresh OTP is ready on your verification screen.',
+    ...(env.isProduction || !otpIssue.debugOtp
+      ? {}
+      : {
+          debugOtp: otpIssue.debugOtp,
+        }),
   })
 })
 
@@ -317,7 +362,27 @@ export const login = asyncHandler(async (req, res) => {
   }
 
   if (!user.verified) {
-    throw new AppError('Please verify OTP before login.', 403)
+    const otpIssue = await issueOtpForUser({
+      userId: user.id,
+      email: user.email,
+      name: `${user.profile?.firstName || ''} ${user.profile?.lastName || ''}`.trim(),
+    })
+
+    throw new AppError(
+      otpIssue.delivery?.delivered
+        ? 'Please verify OTP before login. A fresh OTP was sent to your email.'
+        : 'Please verify OTP before login. Use the OTP shown on your screen.',
+      403,
+      {
+        requiresOtp: true,
+        email: user.email,
+        ...(env.isProduction || !otpIssue.debugOtp
+          ? {}
+          : {
+              debugOtp: otpIssue.debugOtp,
+            }),
+      },
+    )
   }
 
   const now = new Date()

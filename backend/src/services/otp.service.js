@@ -30,11 +30,44 @@ export const issueOtpForUser = async ({ userId, email, name }) => {
     },
   })
 
-  await sendOtpEmail({
-    toEmail: email,
-    name,
-    otp,
-  })
+  let delivery = {
+    delivered: false,
+    provider: 'unknown',
+  }
+
+  try {
+    delivery =
+      (await sendOtpEmail({
+        toEmail: email,
+        name,
+        otp,
+      })) || delivery
+  } catch (error) {
+    if (env.isProduction) {
+      throw error
+    }
+
+    const deliveryError =
+      typeof error?.message === 'string' && error.message.trim()
+        ? error.message
+        : 'Unknown OTP delivery error'
+
+    console.error(`[otp] delivery failed for ${email}: ${deliveryError}`)
+    delivery = {
+      delivered: false,
+      provider: 'resend',
+      error: deliveryError,
+    }
+  }
+
+  return {
+    delivery,
+    ...(env.isProduction
+      ? {}
+      : {
+          debugOtp: otp,
+        }),
+  }
 }
 
 export const verifyUserOtp = async ({ userId, otp }) => {

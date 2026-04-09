@@ -14,6 +14,9 @@ let refreshPromise = null
 
 const shouldSkipRefresh = (url = '') => {
   return (
+    url.includes('/api/login') ||
+    url.includes('/api/signup') ||
+    url.includes('/api/refresh-token') ||
     url.includes('/api/auth/login') ||
     url.includes('/api/auth/signup') ||
     url.includes('/api/auth/refresh-token') ||
@@ -51,7 +54,7 @@ api.interceptors.response.use(
 
     try {
       if (!refreshPromise) {
-        refreshPromise = api.post('/api/auth/refresh-token', {})
+        refreshPromise = api.post('/api/refresh-token', {})
       }
 
       const refreshResponse = await refreshPromise

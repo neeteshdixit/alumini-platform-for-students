@@ -1,21 +1,37 @@
-function MentorshipRequestCard({ imageSrc, imageAlt, name, subtitle, quote }) {
+function MentorshipRequestCard({
+  imageSrc,
+  imageAlt,
+  name,
+  subtitle,
+  quote,
+  onAccept = () => {},
+  onDecline = () => {},
+}) {
   return (
-    <div className="bg-surface-container dark:bg-slate-900/40 p-5 rounded-xl border border-transparent hover:border-primary/20 transition-all">
-      <div className="flex gap-4 mb-4">
-        <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
-          <img alt={imageAlt} className="w-full h-full object-cover" src={imageSrc} />
+    <div className="rounded-xl border border-transparent bg-surface-container p-5 transition-all hover:border-primary/20 dark:bg-slate-900/40">
+      <div className="mb-4 flex gap-4">
+        <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-full">
+          <img alt={imageAlt} className="h-full w-full object-cover" src={imageSrc} />
         </div>
         <div>
-          <h4 className="font-bold text-sm text-on-surface">{name}</h4>
+          <h4 className="text-sm font-bold text-on-surface">{name}</h4>
           <p className="text-xs text-on-surface-variant">{subtitle}</p>
         </div>
       </div>
-      <p className="text-xs text-on-surface-variant italic mb-4 line-clamp-2">{quote}</p>
+      <p className="mb-4 line-clamp-2 text-xs italic text-on-surface-variant">{quote}</p>
       <div className="grid grid-cols-2 gap-2">
-        <button className="py-2 text-xs font-bold text-on-surface bg-surface-container-highest dark:bg-slate-800 rounded-lg hover:opacity-80 transition-all" type="button">
+        <button
+          className="rounded-lg bg-surface-container-highest py-2 text-xs font-bold text-on-surface transition-all hover:opacity-80 dark:bg-slate-800"
+          onClick={onDecline}
+          type="button"
+        >
           Decline
         </button>
-        <button className="py-2 text-xs font-bold text-white bg-primary rounded-lg shadow-sm hover:shadow-primary/20 transition-all" type="button">
+        <button
+          className="rounded-lg bg-primary py-2 text-xs font-bold text-white shadow-sm transition-all hover:shadow-primary/20"
+          onClick={onAccept}
+          type="button"
+        >
           Accept
         </button>
       </div>

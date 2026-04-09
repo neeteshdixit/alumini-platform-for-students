@@ -1,229 +1,236 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 
-import { api } from '../../services/api'
+import {
+  getMe,
+  login,
+  resendOtp,
+  signup,
+  verifyOtp,
+} from '../../services/platformApi'
 import { useAuthStore } from '../../store/authStore'
+import { getErrorMessage } from '../../utils/error'
 
-const allStates = [
-  'Andhra Pradesh',
-  'Arunachal Pradesh',
-  'Assam',
-  'Bihar',
-  'Chhattisgarh',
-  'Goa',
-  'Gujarat',
-  'Haryana',
-  'Himachal Pradesh',
-  'Jharkhand',
-  'Karnataka',
-  'Kerala',
-  'Madhya Pradesh',
-  'Maharashtra',
-  'Manipur',
-  'Meghalaya',
-  'Mizoram',
-  'Nagaland',
-  'Odisha',
-  'Punjab',
-  'Rajasthan',
-  'Sikkim',
-  'Tamil Nadu',
-  'Telangana',
-  'Tripura',
-  'Uttar Pradesh',
-  'Uttarakhand',
-  'West Bengal',
-  'Andaman and Nicobar Islands',
-  'Chandigarh',
-  'Dadra and Nagar Haveli and Daman and Diu',
-  'Delhi',
-  'Jammu and Kashmir',
-  'Ladakh',
-  'Lakshadweep',
-  'Puducherry',
-]
-
-const initialForm = {
-  fullName: '',
+const signupInitial = {
+  role: 'STUDENT',
+  name: '',
   email: '',
-  state: '',
-  institution: '',
+  enrollmentNumber: '',
+  collegeName: '',
   password: '',
   confirmPassword: '',
 }
 
-const getReadableError = (error, fallback) => {
-  if (!error?.response) {
-    return 'Unable to connect to server. Ensure backend is running at http://localhost:5000.'
-  }
-
-  const fieldErrors = error.response?.data?.details?.fieldErrors
-  if (fieldErrors && typeof fieldErrors === 'object') {
-    const firstFieldError = Object.values(fieldErrors)
-      .flat()
-      .find((message) => typeof message === 'string' && message.trim().length > 0)
-
-    if (firstFieldError) {
-      return firstFieldError
-    }
-  }
-
-  return error.response?.data?.message || fallback
+const loginInitial = {
+  identifier: '',
+  password: '',
 }
 
 function AuthCard() {
-  const location = useLocation()
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
   const setSession = useAuthStore((state) => state.setSession)
+  const setUser = useAuthStore((state) => state.setUser)
+  const clearSession = useAuthStore((state) => state.clearSession)
 
-  const [form, setForm] = useState(initialForm)
-  const [institutionOptions, setInstitutionOptions] = useState([])
-  const [isLoadingInstitutions, setIsLoadingInstitutions] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [signupForm, setSignupForm] = useState(signupInitial)
+  const [loginForm, setLoginForm] = useState(loginInitial)
+  const [otpEmail, setOtpEmail] = useState('')
+  const [otpCode, setOtpCode] = useState('')
+  const [debugOtp, setDebugOtp] = useState('')
   const [feedback, setFeedback] = useState({ type: '', message: '' })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showOtpStep, setShowOtpStep] = useState(false)
 
-  const isLogin = location.pathname !== '/signup'
-
-  const submitLabel = useMemo(() => {
-    if (isSubmitting) {
-      return isLogin ? 'Signing in...' : 'Creating account...'
-    }
-
-    return isLogin ? 'Login' : 'Create Account'
-  }, [isSubmitting, isLogin])
+  const isLogin = useMemo(() => {
+    return location.pathname === '/login' || location.pathname === '/signin'
+  }, [location.pathname])
 
   useEffect(() => {
-    if (isLogin) {
-      setInstitutionOptions([])
-      setIsLoadingInstitutions(false)
-      return
+    const roleFromUrl = searchParams.get('role')
+    if (roleFromUrl === 'ALUMNI' || roleFromUrl === 'STUDENT') {
+      setSignupForm((current) => ({ ...current, role: roleFromUrl }))
     }
+  }, [searchParams])
 
-    const state = form.state.trim()
-    if (!state) {
-      setInstitutionOptions([])
-      if (form.institution) {
-        setForm((current) => ({ ...current, institution: '' }))
-      }
-      return
-    }
-
-    let isMounted = true
-    setIsLoadingInstitutions(true)
-
-    api
-      .get('/api/colleges', {
-        params: { state },
-      })
-      .then((response) => {
-        if (!isMounted) return
-
-        const options = response.data?.colleges || []
-        setInstitutionOptions(options)
-
-        const selectedStillExists = options.some(
-          (college) => college.name === form.institution,
-        )
-
-        if (!selectedStillExists) {
-          setForm((current) => ({ ...current, institution: '' }))
-        }
-      })
-      .catch((error) => {
-        if (!isMounted) return
-
-        setInstitutionOptions([])
-        setFeedback({
-          type: 'error',
-          message: getReadableError(
-            error,
-            'Unable to fetch colleges. Please try again.',
-          ),
-        })
-      })
-      .finally(() => {
-        if (isMounted) {
-          setIsLoadingInstitutions(false)
-        }
-      })
-
-    return () => {
-      isMounted = false
-    }
-  }, [form.state, form.institution, isLogin])
-
-  const switchMode = (nextMode) => {
+  useEffect(() => {
     setFeedback({ type: '', message: '' })
-    if (nextMode === 'signup') {
+  }, [location.pathname])
+
+  const updateSignupField = (field, value) => {
+    setSignupForm((current) => ({ ...current, [field]: value }))
+  }
+
+  const updateLoginField = (field, value) => {
+    setLoginForm((current) => ({ ...current, [field]: value }))
+  }
+
+  const switchMode = (mode) => {
+    setFeedback({ type: '', message: '' })
+    setShowOtpStep(false)
+    setDebugOtp('')
+    if (mode === 'signup') {
       navigate('/signup')
       return
     }
-
     navigate('/login')
   }
 
-  const updateField = (field, value) => {
-    setForm((current) => {
-      if (field === 'state') {
-        return {
-          ...current,
-          state: value,
-          institution: '',
-        }
-      }
-
-      return { ...current, [field]: value }
-    })
-  }
-
-  const handleSubmit = async (event) => {
+  const handleSignup = async (event) => {
     event.preventDefault()
     setFeedback({ type: '', message: '' })
 
-    if (!isLogin && form.password !== form.confirmPassword) {
-      setFeedback({ type: 'error', message: 'Passwords do not match.' })
-      return
-    }
+    setIsSubmitting(true)
+    try {
+      const payload = {
+        role: signupForm.role,
+        name: signupForm.name,
+        email: signupForm.email,
+        enrollmentNumber:
+          signupForm.role === 'ALUMNI' ? signupForm.enrollmentNumber : undefined,
+        collegeName: signupForm.collegeName,
+        password: signupForm.password,
+        confirmPassword: signupForm.confirmPassword,
+      }
 
+      const response = await signup(payload)
+
+      setOtpEmail(signupForm.email)
+      setOtpCode('')
+      setDebugOtp(response?.debugOtp ? String(response.debugOtp) : '')
+      setShowOtpStep(true)
+      setFeedback({
+        type: 'success',
+        message:
+          response?.message || 'Signup completed. Enter the OTP sent to your email.',
+      })
+    } catch (error) {
+      setDebugOtp('')
+      setFeedback({
+        type: 'error',
+        message: getErrorMessage(error, 'Signup failed.'),
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleVerifyOtp = async (event) => {
+    event.preventDefault()
+    setFeedback({ type: '', message: '' })
     setIsSubmitting(true)
 
     try {
-      if (isLogin) {
-        const response = await api.post('/api/auth/login', {
-          email: form.email,
-          password: form.password,
-        })
-
-        setSession({
-          user: response.data.user,
-          accessToken: response.data.accessToken,
-        })
-
-        navigate('/dashboard', { replace: true })
-        return
-      }
-
-      await api.post('/api/auth/signup', {
-        fullName: form.fullName,
-        email: form.email,
-        state: form.state,
-        institution: form.institution,
-        password: form.password,
-        confirmPassword: form.confirmPassword,
+      await verifyOtp({
+        email: otpEmail,
+        otp: otpCode,
       })
 
       setFeedback({
         type: 'success',
-        message: 'Signup successful. Please login with your credentials.',
+        message: 'OTP verified. Please login.',
       })
-      setForm(initialForm)
-      window.setTimeout(() => {
-        navigate('/login')
-      }, 600)
+      setDebugOtp('')
+      setShowOtpStep(false)
+      setSignupForm(signupInitial)
+      navigate('/login')
     } catch (error) {
       setFeedback({
         type: 'error',
-        message: getReadableError(error, 'Request failed. Please try again.'),
+        message: getErrorMessage(error, 'OTP verification failed.'),
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleResendOtp = async () => {
+    setFeedback({ type: '', message: '' })
+    setIsSubmitting(true)
+
+    try {
+      const response = await resendOtp({ email: otpEmail })
+      setDebugOtp(response?.debugOtp ? String(response.debugOtp) : '')
+      setFeedback({
+        type: 'success',
+        message: response?.message || 'A new OTP has been sent.',
+      })
+    } catch (error) {
+      setFeedback({
+        type: 'error',
+        message: getErrorMessage(error, 'Failed to resend OTP.'),
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleLogin = async (event) => {
+    event.preventDefault()
+    setFeedback({ type: '', message: '' })
+    setIsSubmitting(true)
+
+    try {
+      clearSession()
+
+      const response = await login({
+        identifier: loginForm.identifier,
+        password: loginForm.password,
+      })
+
+      if (!response?.accessToken) {
+        throw new Error('Login response missing access token.')
+      }
+
+      setSession({
+        user: null,
+        accessToken: response.accessToken,
+      })
+
+      try {
+        const meResponse = await getMe()
+        if (meResponse?.user) {
+          setUser(meResponse.user)
+        } else if (response.user) {
+          setUser(response.user)
+        }
+      } catch {
+        if (response.user) {
+          setUser(response.user)
+        }
+      }
+
+      navigate('/dashboard', { replace: true })
+    } catch (error) {
+      clearSession()
+
+      const requiresOtp =
+        error?.response?.status === 403 &&
+        Boolean(error?.response?.data?.details?.requiresOtp)
+
+      if (requiresOtp) {
+        const details = error.response?.data?.details || {}
+        const typedIdentifier = loginForm.identifier.trim()
+        const fallbackEmail = typedIdentifier.includes('@') ? typedIdentifier : ''
+        const nextOtpEmail = details.email || fallbackEmail
+
+        setOtpEmail(nextOtpEmail)
+        setOtpCode('')
+        setShowOtpStep(true)
+        setDebugOtp(details.debugOtp ? String(details.debugOtp) : '')
+        setFeedback({
+          type: 'success',
+          message:
+            error.response?.data?.message ||
+            'Please verify OTP before login. Enter the OTP to continue.',
+        })
+        return
+      }
+
+      setFeedback({
+        type: 'error',
+        message: getErrorMessage(error, 'Login failed.'),
       })
     } finally {
       setIsSubmitting(false)
@@ -231,13 +238,11 @@ function AuthCard() {
   }
 
   return (
-    <div className="overflow-hidden rounded-xl bg-surface-container-lowest shadow-[0_20px_50px_rgba(23,28,31,0.06)] dark:bg-slate-900 dark:shadow-[0_20px_50px_rgba(0,0,0,0.3)]">
-      <div className="flex border-b border-outline-variant/10 dark:border-slate-800">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+      <div className="grid grid-cols-2 border-b border-slate-200">
         <button
-          className={`flex-1 border-b-2 py-4 text-sm transition-all ${
-            isLogin
-              ? 'border-primary font-bold text-primary dark:border-blue-400 dark:text-blue-400'
-              : 'border-transparent font-semibold text-slate-400 hover:text-primary dark:hover:text-blue-300'
+          className={`px-4 py-3 text-sm font-bold ${
+            isLogin ? 'bg-blue-900 text-white' : 'text-slate-600'
           }`}
           onClick={() => switchMode('login')}
           type="button"
@@ -245,10 +250,8 @@ function AuthCard() {
           Login
         </button>
         <button
-          className={`flex-1 border-b-2 py-4 text-sm transition-all ${
-            !isLogin
-              ? 'border-primary font-bold text-primary dark:border-blue-400 dark:text-blue-400'
-              : 'border-transparent font-semibold text-slate-400 hover:text-primary dark:hover:text-blue-300'
+          className={`px-4 py-3 text-sm font-bold ${
+            !isLogin ? 'bg-blue-900 text-white' : 'text-slate-600'
           }`}
           onClick={() => switchMode('signup')}
           type="button"
@@ -257,253 +260,172 @@ function AuthCard() {
         </button>
       </div>
 
-      <div className="p-8">
-        <form className="space-y-6" onSubmit={handleSubmit}>
-          {!isLogin && (
-            <div className="space-y-2">
-              <label
-                className="text-xs font-bold tracking-widest text-on-surface-variant uppercase dark:text-slate-500"
-                htmlFor="full-name"
-              >
-                Full Name
-              </label>
-              <div className="relative">
-                <span className="material-symbols-outlined absolute top-1/2 left-3 -translate-y-1/2 text-lg text-slate-400">
-                  person
-                </span>
-                <input
-                  autoComplete="name"
-                  className="w-full rounded-lg border-0 bg-surface-container-low py-3 pr-4 pl-10 text-sm text-on-surface outline-none transition-all placeholder:text-slate-400 focus:ring-2 focus:ring-primary/20 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-500/20"
-                  id="full-name"
-                  onChange={(event) => updateField('fullName', event.target.value)}
-                  placeholder="Your full name"
-                  type="text"
-                  value={form.fullName}
-                />
+      <div className="p-6 md:p-8">
+        {showOtpStep ? (
+          <form className="space-y-4" onSubmit={handleVerifyOtp}>
+            <h2 className="text-xl font-black text-blue-950">Verify Email OTP</h2>
+            <p className="text-sm text-slate-600">
+              We sent a 6-digit OTP to <span className="font-bold">{otpEmail}</span>.
+            </p>
+            {debugOtp && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Dev OTP (temporary): <span className="font-bold">{debugOtp}</span>
               </div>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <label
-              className="text-xs font-bold tracking-widest text-on-surface-variant uppercase dark:text-slate-500"
-              htmlFor="email"
-            >
-              Email Address
-            </label>
-            <div className="relative">
-              <span className="material-symbols-outlined absolute top-1/2 left-3 -translate-y-1/2 text-lg text-slate-400">
-                mail
-              </span>
-              <input
-                autoComplete="email"
-                className="w-full rounded-lg border-0 bg-surface-container-low py-3 pr-4 pl-10 text-sm text-on-surface outline-none transition-all placeholder:text-slate-400 focus:ring-2 focus:ring-primary/20 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-500/20"
-                id="email"
-                onChange={(event) => updateField('email', event.target.value)}
-                placeholder="alumni@university.edu"
-                type="email"
-                value={form.email}
-              />
-            </div>
-          </div>
-
-          {!isLogin && (
-            <div className="space-y-2">
-              <label
-                className="text-xs font-bold tracking-widest text-on-surface-variant uppercase dark:text-slate-500"
-                htmlFor="state"
-              >
-                State
-              </label>
-              <div className="relative">
-                <span className="material-symbols-outlined absolute top-1/2 left-3 -translate-y-1/2 text-lg text-slate-400">
-                  location_on
-                </span>
-                <select
-                  className="w-full appearance-none rounded-lg border-0 bg-surface-container-low py-3 pr-4 pl-10 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-500/20"
-                  id="state"
-                  name="state"
-                  onChange={(event) => updateField('state', event.target.value)}
-                  value={form.state}
-                >
-                  <option value="">Select State</option>
-                  {allStates.map((state) => (
-                    <option key={state} value={state}>
-                      {state}
-                    </option>
-                  ))}
-                </select>
-                <span className="material-symbols-outlined pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-slate-400">
-                  expand_more
-                </span>
-              </div>
-            </div>
-          )}
-
-          {!isLogin && (
-            <div className="space-y-2">
-              <label
-                className="text-xs font-bold tracking-widest text-on-surface-variant uppercase dark:text-slate-500"
-                htmlFor="institution"
-              >
-                Institution
-              </label>
-              <div className="relative">
-                <span className="material-symbols-outlined absolute top-1/2 left-3 -translate-y-1/2 text-lg text-slate-400">
-                  school
-                </span>
-                <select
-                  className="w-full appearance-none rounded-lg border-0 bg-surface-container-low py-3 pr-4 pl-10 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-500/20"
-                  disabled={!form.state || isLoadingInstitutions}
-                  id="institution"
-                  name="institution"
-                  onChange={(event) => updateField('institution', event.target.value)}
-                  value={form.institution}
-                >
-                  <option value="">
-                    {!form.state
-                      ? 'Select State first'
-                      : isLoadingInstitutions
-                        ? 'Loading colleges...'
-                        : 'Select your College'}
-                  </option>
-                  {institutionOptions.map((college) => (
-                    <option key={college.id} value={college.name}>
-                      {college.name}
-                    </option>
-                  ))}
-                </select>
-                <span className="material-symbols-outlined pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-slate-400">
-                  expand_more
-                </span>
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label
-                className="text-xs font-bold tracking-widest text-on-surface-variant uppercase dark:text-slate-500"
-                htmlFor="password"
-              >
-                Password
-              </label>
-              {isLogin && (
-                <a
-                  className="text-[10px] font-bold tracking-widest text-primary uppercase hover:underline dark:text-blue-400"
-                  href="#"
-                >
-                  Forgot?
-                </a>
-              )}
-            </div>
-            <div className="relative">
-              <span className="material-symbols-outlined absolute top-1/2 left-3 -translate-y-1/2 text-lg text-slate-400">
-                lock
-              </span>
-              <input
-                autoComplete={isLogin ? 'current-password' : 'new-password'}
-                className="w-full rounded-lg border-0 bg-surface-container-low py-3 pr-4 pl-10 text-sm text-on-surface outline-none transition-all placeholder:text-slate-400 focus:ring-2 focus:ring-primary/20 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-500/20"
-                id="password"
-                onChange={(event) => updateField('password', event.target.value)}
-                placeholder="........"
-                type="password"
-                value={form.password}
-              />
-            </div>
-          </div>
-
-          {!isLogin && (
-            <div className="space-y-2">
-              <label
-                className="text-xs font-bold tracking-widest text-on-surface-variant uppercase dark:text-slate-500"
-                htmlFor="confirm-password"
-              >
-                Confirm Password
-              </label>
-              <div className="relative">
-                <span className="material-symbols-outlined absolute top-1/2 left-3 -translate-y-1/2 text-lg text-slate-400">
-                  verified_user
-                </span>
-                <input
-                  autoComplete="new-password"
-                  className="w-full rounded-lg border-0 bg-surface-container-low py-3 pr-4 pl-10 text-sm text-on-surface outline-none transition-all placeholder:text-slate-400 focus:ring-2 focus:ring-primary/20 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-500/20"
-                  id="confirm-password"
-                  onChange={(event) => updateField('confirmPassword', event.target.value)}
-                  placeholder="........"
-                  type="password"
-                  value={form.confirmPassword}
-                />
-              </div>
-            </div>
-          )}
-
-          {feedback.message && (
-            <div
-              className={`rounded-lg px-4 py-3 text-sm font-medium ${
-                feedback.type === 'success'
-                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                  : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-              }`}
-            >
-              {feedback.message}
-            </div>
-          )}
-
-          <button
-            className="flex w-full items-center justify-center gap-3 rounded-lg bg-gradient-to-br from-primary to-primary-container py-4 text-sm font-bold tracking-wide text-on-primary shadow-lg shadow-primary/20 transition-all hover:shadow-primary/30 active:scale-95 disabled:cursor-not-allowed disabled:opacity-80"
-            disabled={isSubmitting}
-            type="submit"
-          >
-            {isSubmitting && (
-              <svg
-                aria-hidden="true"
-                className="h-4 w-4 animate-spin text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  fill="currentColor"
-                />
-              </svg>
             )}
-            {submitLabel}
-          </button>
-
-          <div className="relative py-4">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-outline-variant/20 dark:border-slate-800" />
-            </div>
-            <div className="relative flex justify-center text-xs tracking-widest uppercase">
-              <span className="bg-surface-container-lowest px-4 font-semibold text-slate-400 dark:bg-slate-900">
-                Or continue with
-              </span>
-            </div>
-          </div>
-
-          <button
-            className="flex w-full items-center justify-center gap-3 rounded-lg border border-outline-variant/30 bg-white py-3 text-sm font-semibold text-on-surface transition-all hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
-            type="button"
-          >
-            <img
-              alt="Google logo"
-              className="h-5 w-5"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuCqg1alVdaz-5rIIzBRnAjgS9pDCP0kZFIdsfTaXCYTlCyDU2AKgXWa4HlHnKaxCY2vXc1zJVRWf89kog6wpaTLY8bCvdVSz0RYvxdS616eqZOg11O2wvhsWaGcVqFz76EOP2EDF0Lp-0RkDWphOf4dBldjwvRimtZdNXLsP7Z70REB4HaM7XVgb2peH7ZW34Dnm70F1MjSTQGIYXYk3zdGICcW4ltzpLV4i1-XDlAyPNPJpUnmX_V2NQbjqmpucxW1CVSQFWMBG-I"
+            <input
+              className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm"
+              maxLength={6}
+              onChange={(event) => setOtpCode(event.target.value)}
+              placeholder="Enter 6-digit OTP"
+              value={otpCode}
             />
-            Continue with Google
-          </button>
-        </form>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-bold text-white"
+                disabled={isSubmitting}
+                type="submit"
+              >
+                {isSubmitting ? 'Verifying...' : 'Verify OTP'}
+              </button>
+              <button
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold"
+                disabled={isSubmitting}
+                onClick={handleResendOtp}
+                type="button"
+              >
+                Resend OTP
+              </button>
+              <button
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold"
+                onClick={() => setShowOtpStep(false)}
+                type="button"
+              >
+                Back
+              </button>
+            </div>
+          </form>
+        ) : isLogin ? (
+          <form className="space-y-4" onSubmit={handleLogin}>
+            <h2 className="text-xl font-black text-blue-950">Login</h2>
+            <input
+              className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm"
+              onChange={(event) => updateLoginField('identifier', event.target.value)}
+              placeholder="Email or Enrollment Number"
+              value={loginForm.identifier}
+            />
+            <input
+              className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm"
+              onChange={(event) => updateLoginField('password', event.target.value)}
+              placeholder="Password"
+              type="password"
+              value={loginForm.password}
+            />
+            <button
+              className="w-full rounded-lg bg-blue-900 px-4 py-3 text-sm font-bold text-white"
+              disabled={isSubmitting}
+              type="submit"
+            >
+              {isSubmitting ? 'Logging in...' : 'Login'}
+            </button>
+          </form>
+        ) : (
+          <form className="space-y-4" onSubmit={handleSignup}>
+            <h2 className="text-xl font-black text-blue-950">Create Account</h2>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                className={`rounded-lg px-3 py-2 text-sm font-bold ${
+                  signupForm.role === 'STUDENT'
+                    ? 'bg-blue-900 text-white'
+                    : 'border border-slate-300 text-slate-700'
+                }`}
+                onClick={() => updateSignupField('role', 'STUDENT')}
+                type="button"
+              >
+                Join as Student
+              </button>
+              <button
+                className={`rounded-lg px-3 py-2 text-sm font-bold ${
+                  signupForm.role === 'ALUMNI'
+                    ? 'bg-blue-900 text-white'
+                    : 'border border-slate-300 text-slate-700'
+                }`}
+                onClick={() => updateSignupField('role', 'ALUMNI')}
+                type="button"
+              >
+                Join as Alumni
+              </button>
+            </div>
+
+            <input
+              className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm"
+              onChange={(event) => updateSignupField('name', event.target.value)}
+              placeholder="Full Name"
+              value={signupForm.name}
+            />
+            <input
+              className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm"
+              onChange={(event) => updateSignupField('email', event.target.value)}
+              placeholder={
+                signupForm.role === 'STUDENT'
+                  ? 'College Email'
+                  : 'Email for OTP verification'
+              }
+              type="email"
+              value={signupForm.email}
+            />
+            {signupForm.role === 'ALUMNI' && (
+              <input
+                className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm"
+                onChange={(event) =>
+                  updateSignupField('enrollmentNumber', event.target.value)
+                }
+                placeholder="Enrollment Number"
+                value={signupForm.enrollmentNumber}
+              />
+            )}
+            <input
+              className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm"
+              onChange={(event) => updateSignupField('collegeName', event.target.value)}
+              placeholder="College Name"
+              value={signupForm.collegeName}
+            />
+            <input
+              className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm"
+              onChange={(event) => updateSignupField('password', event.target.value)}
+              placeholder="Password"
+              type="password"
+              value={signupForm.password}
+            />
+            <input
+              className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm"
+              onChange={(event) =>
+                updateSignupField('confirmPassword', event.target.value)
+              }
+              placeholder="Confirm Password"
+              type="password"
+              value={signupForm.confirmPassword}
+            />
+            <button
+              className="w-full rounded-lg bg-blue-900 px-4 py-3 text-sm font-bold text-white"
+              disabled={isSubmitting}
+              type="submit"
+            >
+              {isSubmitting ? 'Creating account...' : 'Sign Up & Send OTP'}
+            </button>
+          </form>
+        )}
+
+        {feedback.message && (
+          <div
+            className={`mt-4 rounded-lg px-4 py-3 text-sm font-semibold ${
+              feedback.type === 'error'
+                ? 'bg-red-100 text-red-700'
+                : 'bg-emerald-100 text-emerald-700'
+            }`}
+          >
+            {feedback.message}
+          </div>
+        )}
       </div>
     </div>
   )

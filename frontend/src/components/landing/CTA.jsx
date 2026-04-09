@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 function CTA() {
   return (
     <section className="py-24">
@@ -22,18 +24,18 @@ function CTA() {
             </p>
 
             <div className="flex flex-wrap justify-center gap-6">
-              <button
+              <Link
                 className="rounded-2xl bg-white px-10 py-5 text-lg font-bold text-primary transition-all hover:-translate-y-1 hover:shadow-2xl"
-                type="button"
+                to="/signup?role=ALUMNI"
               >
                 Start Your Application
-              </button>
-              <button
+              </Link>
+              <Link
                 className="rounded-2xl bg-primary-container px-10 py-5 text-lg font-bold text-white transition-all hover:bg-blue-800"
-                type="button"
+                to="/#college-selector"
               >
                 Explore University List
-              </button>
+              </Link>
             </div>
           </div>
         </div>

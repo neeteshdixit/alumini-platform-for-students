@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 
-import { api } from '../../services/api'
+import { logout } from '../../services/platformApi'
 import { useAuthStore } from '../../store/authStore'
 
 function Navbar() {
@@ -10,7 +10,7 @@ function Navbar() {
 
   const handleLogout = async () => {
     try {
-      await api.post('/api/auth/logout', {})
+      await logout()
     } catch {
       // Ignore API failure and still clear local auth state
     } finally {
@@ -30,24 +30,24 @@ function Navbar() {
             AlumniConnect
           </Link>
           <div className="hidden items-center gap-6 md:flex">
-            <a
+            <Link
               className="border-b-2 border-blue-900 pb-1 font-bold tracking-tight text-blue-900 dark:border-blue-400 dark:text-blue-400"
-              href="#"
+              to="/search"
             >
               Directory
-            </a>
-            <a
+            </Link>
+            <Link
               className="tracking-tight text-slate-500 transition-colors hover:text-blue-800 dark:text-slate-400"
-              href="#"
+              to="/events"
             >
               Events
-            </a>
-            <a
+            </Link>
+            <Link
               className="tracking-tight text-slate-500 transition-colors hover:text-blue-800 dark:text-slate-400"
-              href="#"
+              to="/news"
             >
               News
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -67,13 +67,13 @@ function Navbar() {
               <div className="h-8 w-8 overflow-hidden rounded-full bg-surface-container ring-1 ring-outline-variant/30">
                 {user.avatarUrl ? (
                   <img
-                    alt={`${user.fullName || 'User'} avatar`}
+                    alt={`${user.name || 'User'} avatar`}
                     className="h-full w-full object-cover"
                     src={user.avatarUrl}
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-xs font-bold text-primary">
-                    {(user.firstName || user.fullName || 'U').slice(0, 1).toUpperCase()}
+                    {(user.name || 'U').slice(0, 1).toUpperCase()}
                   </div>
                 )}
               </div>
@@ -83,7 +83,7 @@ function Navbar() {
               <Link className="btn btn-sm btn-ghost" to="/login">
                 Login
               </Link>
-              <Link className="btn btn-sm btn-primary" to="/signup">
+              <Link className="btn btn-sm btn-primary" to="/signup?role=ALUMNI">
                 Join Now
               </Link>
             </>

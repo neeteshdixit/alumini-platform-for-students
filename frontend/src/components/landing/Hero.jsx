@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 function Hero() {
   return (
     <section className="relative flex min-h-[921px] items-center overflow-hidden">
@@ -29,42 +31,25 @@ function Hero() {
           </p>
 
           <div className="flex flex-col gap-4 pt-4 sm:flex-row">
-            <a
+            <Link
               className="editorial-gradient rounded-xl px-8 py-4 text-center font-bold text-on-primary shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95"
-              href="/signup"
+              to="/signup?role=ALUMNI"
             >
               Join as Alumni
-            </a>
-            <a
+            </Link>
+            <Link
               className="rounded-xl bg-surface-container-highest px-8 py-4 text-center font-bold text-on-surface transition-all hover:bg-surface-container-high active:scale-95"
-              href="/login"
+              to="/signup?role=STUDENT"
             >
               Join as Student
-            </a>
+            </Link>
           </div>
 
           <div className="pt-8">
-            <label
-              className="mb-3 block text-xs font-bold uppercase tracking-widest text-slate-400"
-              htmlFor="institution-select"
-            >
-              Find your Institution
-            </label>
-            <div className="relative max-w-md">
-              <select
-                className="w-full appearance-none rounded-xl border-none bg-surface-container-lowest px-4 py-3 ring-1 ring-outline-variant/20 focus:ring-primary"
-                id="institution-select"
-                name="institution"
-              >
-                <option>Select your College</option>
-                <option>Ivy League University</option>
-                <option>Grand Heritage Institute</option>
-                <option>Modern Tech Academy</option>
-              </select>
-              <span className="material-symbols-outlined pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-slate-400">
-                expand_more
-              </span>
-            </div>
+            <p className="max-w-md rounded-xl bg-surface-container-lowest p-4 text-sm text-on-surface-variant ring-1 ring-outline-variant/20">
+              College suggestions are now loaded dynamically during signup from the
+              database, including your custom college additions.
+            </p>
           </div>
         </div>
 

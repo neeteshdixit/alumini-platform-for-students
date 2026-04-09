@@ -1,419 +1,632 @@
-const recentChats = [
-  {
-    id: 'sarah',
-    name: 'Sarah Jenkins',
-    message: 'Thanks for the mentorship advice!',
-    time: '2m',
-    online: true,
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuA1PAIxiaqtFvV6y-PQov1_jbMqvtnQx6zj0_kcaeuN6Kf_jAE2HcwKpPa_mCarlv4qWsMkGlCB5wfFcNcgscOar1YKXc1uHzI4Pu4kynPtKxOI6kHvmZsL4JG2euCbsU00Lt9yvUXbPXarlNrGi_0R75yeyYsOKAi0hwrkJ0TXzv7zFGpXtjYh8hDN0cndQRoqagIiromnSX_TJWwO3vqvR-LUX5PaZ4EcrXKd_trb1dOsBMi9mUWLZc4yfC8mWlmgO0J1S2aXQtc',
-  },
-  {
-    id: 'david',
-    name: 'David Lowery',
-    message: 'Are you attending the gala?',
-    time: '1h',
-    online: false,
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuAKs9bhiNq-0ThrxLrYynCVzp6UgNYs-WL_SEzpdTe6Gkr5G3EAQ79sR2ZgmgLgoPDuPIZsPnTKLHx2Nys0j1yOIu-tWwgezvHf68owJMAPQ3y4BvRiMsBxFTMSFyVkQaCFUyK1AsmSHXd-EloIZ_kMoW438Omt7oLXr-4CHUqT05UxTzuZHRB-q4Pv_-nbpEXTYiQawzFe6EsVs__oJ1FMbrIhgiosSsz9eYRvecrwf8DPkRMCZ_log3SdsvmBnMli-vBMwbqtpCg',
-  },
-]
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 
-const mentorCards = [
-  {
-    id: 'robert',
-    name: 'Robert Vance',
-    role: 'Senior Director @ Adobe',
-    tags: ['Product', 'Design'],
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuCrN4bwln4WfR6b9CxWfA6Dc688kwsBrqh_tsOPgsncRMyC1gkLQqBDE_nm5ISAUyr3sEsE45cDv9RYpHlPuVl7RITDMvNAtgc7ciaZFdasTdjCq2ajxpeNOBFc0OS8A7pb0FnHoMYrBBiq_lapcRrK1asslZsurUJj2HDWE8yzEkFjLcXLxmZp_2z5rpb7S5z_LUMavucrrJrx7k8XNOPSuQf1a2dzIVdt2UAvHA4wdeKg7FOJKiYvw-kdhGStK-S-50KnSpT2gvo',
-  },
-  {
-    id: 'elena',
-    name: 'Elena Rodriguez',
-    role: 'Founder of FlowState',
-    tags: ['Startup', 'Leadership'],
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuCfb_tINaLpMWxdziKDpx2BIfq78odAqc-Nox0TwEgjHj7W5VJs4-Z_QGxVs0TZmBGFsc-991l10upfEm1mucRzWPqXlTg780xTlvqTqwsbEbUwk_eerAUjPDDfvTe0daOPUdbTZixI-4DT49iWLbUuZLj7Xyw3IK054XcVcLINBZjhYoKL6cfyt2x8K_TojK5llZcfkiLhwvdaMr1LB4yj58utnft3NsimC2BzCpKZ4TsegjyLyS4a7aOmWEFrFnQUYzfIsRsdJrA',
-  },
-  {
-    id: 'marcus',
-    name: 'Marcus Thorne',
-    role: 'VP of Sales @ Shopify',
-    tags: ['Growth', 'Strategy'],
-    image:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuBdMI4CNVBKgi9BSCEf3bS0NvoKBw6oafTFDQo6hVPMoV8cdACvUflAktDfF9vorbaYaLIThENQFOv_sbor8Diqhw32KR-Lad-4S-AL3HjS-l1uPR-DO5gnCzr1gMU5bQw8Fd88uCKZfKrRosW0WnnoWHq4ihFj8n_G7QnPjpCT0E0RxBsMsMoNK4gu219QIyHzRZcBWoLmRYTE0TQhP3LbLfBHcTVwbADNNxVIfjgobEKbTCUm5gpfmIcmdpMALtBAsP96AIniCH0',
-  },
-]
+import AppShell from '../components/layout/AppShell'
+import {
+  createPost,
+  fetchMessages,
+  getConnections,
+  getMe,
+  getPosts,
+  getUserSuggestions,
+  respondConnectionRequest,
+  sendConnectionRequest,
+} from '../services/platformApi'
+import { useAuthStore } from '../store/authStore'
+import { getErrorMessage } from '../utils/error'
+
+const initialPostForm = {
+  type: 'GENERAL',
+  title: '',
+  description: '',
+  attachmentUrl: '',
+}
+
+const createAsyncState = () => ({
+  loading: true,
+  error: '',
+  data: null,
+})
+
+const speakWelcome = (name) => {
+  if (!window?.speechSynthesis || !name) return
+  const utterance = new SpeechSynthesisUtterance(`Welcome ${name}`)
+  utterance.rate = 1
+  utterance.pitch = 1
+  window.speechSynthesis.cancel()
+  window.speechSynthesis.speak(utterance)
+}
+
+function StatusNotice({ message, tone = 'neutral' }) {
+  const className =
+    tone === 'error'
+      ? 'bg-red-100 text-red-700'
+      : tone === 'success'
+        ? 'bg-emerald-100 text-emerald-700'
+        : 'bg-slate-100 text-slate-700'
+
+  return <p className={`rounded-lg px-3 py-2 text-sm font-medium ${className}`}>{message}</p>
+}
+
+function LoadingOrFallback({ loading, error, empty, loadingText, emptyText }) {
+  if (loading) {
+    return <StatusNotice message={loadingText || 'Loading...'} />
+  }
+  if (error) {
+    return <StatusNotice message="Data not available right now" />
+  }
+  if (empty) {
+    return <StatusNotice message={emptyText || 'Data not available right now'} />
+  }
+  return null
+}
+
+function SuggestionCard({ user, onConnect, isConnecting }) {
+  const canConnect =
+    user.connectionStatus === 'NONE' || user.connectionStatus === 'REJECTED'
+
+  return (
+    <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-bold text-slate-900">{user.name}</h3>
+          <p className="text-sm text-slate-600">
+            {user.role} | {user.collegeName}
+          </p>
+        </div>
+        <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600">
+          {user.connectionStatus}
+        </span>
+      </div>
+
+      <p className="mb-1 text-xs text-slate-600">
+        <span className="font-semibold text-slate-700">Skills:</span>{' '}
+        {user.skills?.length ? user.skills.join(', ') : 'Not added'}
+      </p>
+      <p className="mb-3 text-xs text-slate-600">
+        <span className="font-semibold text-slate-700">Interests:</span>{' '}
+        {user.interests?.length ? user.interests.join(', ') : 'Not added'}
+      </p>
+
+      <div className="flex flex-wrap gap-2">
+        {canConnect && (
+          <button
+            className="rounded-lg bg-blue-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
+            disabled={isConnecting}
+            onClick={() => onConnect(user.id)}
+            type="button"
+          >
+            {isConnecting ? 'Connecting...' : 'Connect'}
+          </button>
+        )}
+
+        {user.connectionStatus === 'CONNECTED' && (
+          <Link
+            className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
+            to={`/messages?with=${user.id}`}
+          >
+            Message
+          </Link>
+        )}
+
+        {user.connectionStatus === 'REQUEST_SENT' && (
+          <span className="rounded-lg bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-700">
+            Request Sent
+          </span>
+        )}
+      </div>
+    </article>
+  )
+}
 
 function Dashboard() {
+  const navigate = useNavigate()
+  const accessToken = useAuthStore((state) => state.accessToken)
+  const setAuthUser = useAuthStore((state) => state.setUser)
+
+  const [userState, setUserState] = useState(createAsyncState)
+  const [suggestionsState, setSuggestionsState] = useState(createAsyncState)
+  const [postsState, setPostsState] = useState(createAsyncState)
+  const [chatsState, setChatsState] = useState(createAsyncState)
+  const [connectionsState, setConnectionsState] = useState(createAsyncState)
+
+  const [status, setStatus] = useState({ type: '', message: '' })
+  const [isPostModalOpen, setIsPostModalOpen] = useState(false)
+  const [postForm, setPostForm] = useState(initialPostForm)
+  const [isSubmittingPost, setIsSubmittingPost] = useState(false)
+  const [connectingUserId, setConnectingUserId] = useState('')
+  const [respondingRequestId, setRespondingRequestId] = useState('')
+
+  const welcomedUserRef = useRef('')
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  const safeSetState = (setter, value) => {
+    if (!mountedRef.current) return
+    setter(value)
+  }
+
+  const loadMe = async () => {
+    safeSetState(setUserState, { loading: true, error: '', data: null })
+
+    try {
+      const response = await getMe()
+      const user = response?.user || null
+      safeSetState(setUserState, { loading: false, error: '', data: user })
+
+      if (user) {
+        setAuthUser(user)
+      }
+    } catch (error) {
+      safeSetState(setUserState, {
+        loading: false,
+        error: getErrorMessage(error),
+        data: null,
+      })
+    }
+  }
+
+  const loadSuggestions = async () => {
+    safeSetState(setSuggestionsState, { loading: true, error: '', data: [] })
+
+    try {
+      const response = await getUserSuggestions()
+      const users = Array.isArray(response?.users) ? response.users : []
+      safeSetState(setSuggestionsState, {
+        loading: false,
+        error: '',
+        data: users,
+      })
+    } catch (error) {
+      safeSetState(setSuggestionsState, {
+        loading: false,
+        error: getErrorMessage(error),
+        data: [],
+      })
+    }
+  }
+
+  const loadPosts = async () => {
+    safeSetState(setPostsState, { loading: true, error: '', data: [] })
+
+    try {
+      const response = await getPosts()
+      const posts = Array.isArray(response?.posts) ? response.posts : []
+      safeSetState(setPostsState, {
+        loading: false,
+        error: '',
+        data: posts,
+      })
+    } catch (error) {
+      safeSetState(setPostsState, {
+        loading: false,
+        error: getErrorMessage(error),
+        data: [],
+      })
+    }
+  }
+
+  const loadChats = async () => {
+    safeSetState(setChatsState, { loading: true, error: '', data: [] })
+
+    try {
+      const response = await fetchMessages()
+      const chats = Array.isArray(response?.conversations) ? response.conversations : []
+      safeSetState(setChatsState, {
+        loading: false,
+        error: '',
+        data: chats,
+      })
+    } catch (error) {
+      safeSetState(setChatsState, {
+        loading: false,
+        error: getErrorMessage(error),
+        data: [],
+      })
+    }
+  }
+
+  const loadConnections = async () => {
+    safeSetState(setConnectionsState, { loading: true, error: '', data: { incoming: [] } })
+
+    try {
+      const response = await getConnections()
+      safeSetState(setConnectionsState, {
+        loading: false,
+        error: '',
+        data: {
+          incoming: response?.incoming || [],
+        },
+      })
+    } catch (error) {
+      safeSetState(setConnectionsState, {
+        loading: false,
+        error: getErrorMessage(error),
+        data: { incoming: [] },
+      })
+    }
+  }
+
+  const loadDashboard = async () => {
+    if (!accessToken) {
+      safeSetState(setUserState, {
+        loading: false,
+        error: 'Please login to continue.',
+        data: null,
+      })
+      return
+    }
+
+    await Promise.all([
+      loadMe(),
+      loadSuggestions(),
+      loadPosts(),
+      loadChats(),
+      loadConnections(),
+    ])
+  }
+
+  useEffect(() => {
+    loadDashboard()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken])
+
+  useEffect(() => {
+    const me = userState.data
+    if (!me || welcomedUserRef.current === me.id) return
+
+    welcomedUserRef.current = me.id
+    speakWelcome(me.name)
+  }, [userState.data])
+
+  const incomingRequests = connectionsState.data?.incoming || []
+  const posts = postsState.data || []
+  const chats = chatsState.data || []
+
+  const userName = userState.data?.name || 'User'
+
+  const mentorSuggestions = useMemo(() => {
+    const suggestions = Array.isArray(suggestionsState.data)
+      ? suggestionsState.data
+      : []
+    return suggestions.filter((item) => item.id !== userState.data?.id)
+  }, [suggestionsState.data, userState.data?.id])
+
+  const handleConnect = async (targetUserId) => {
+    setConnectingUserId(targetUserId)
+    setStatus({ type: '', message: '' })
+
+    try {
+      await sendConnectionRequest(targetUserId)
+      setStatus({ type: 'success', message: 'Connection request sent.' })
+      await Promise.all([loadSuggestions(), loadConnections(), loadChats()])
+    } catch (error) {
+      setStatus({ type: 'error', message: getErrorMessage(error) })
+    } finally {
+      setConnectingUserId('')
+    }
+  }
+
+  const handleRespond = async (requestId, action) => {
+    setRespondingRequestId(requestId)
+    setStatus({ type: '', message: '' })
+
+    try {
+      await respondConnectionRequest({ requestId, action })
+      setStatus({
+        type: 'success',
+        message:
+          action === 'ACCEPT'
+            ? 'Connection request accepted.'
+            : 'Connection request rejected.',
+      })
+      await Promise.all([loadSuggestions(), loadConnections(), loadChats()])
+    } catch (error) {
+      setStatus({ type: 'error', message: getErrorMessage(error) })
+    } finally {
+      setRespondingRequestId('')
+    }
+  }
+
+  const handleCreatePost = async (event) => {
+    event.preventDefault()
+    setStatus({ type: '', message: '' })
+    setIsSubmittingPost(true)
+
+    try {
+      await createPost({
+        type: postForm.type,
+        title: postForm.title,
+        description: postForm.description,
+        attachmentUrl: postForm.attachmentUrl || undefined,
+      })
+
+      setStatus({ type: 'success', message: 'Post created successfully.' })
+      setPostForm(initialPostForm)
+      setIsPostModalOpen(false)
+      await loadPosts()
+    } catch (error) {
+      setStatus({ type: 'error', message: getErrorMessage(error) })
+    } finally {
+      setIsSubmittingPost(false)
+    }
+  }
+
+  const dashboardActions = (
+    <div className="flex flex-wrap gap-2">
+      <button
+        className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+        onClick={() => navigate('/search')}
+        type="button"
+      >
+        View Matches
+      </button>
+      <button
+        className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-bold text-white"
+        onClick={() => setIsPostModalOpen(true)}
+        type="button"
+      >
+        New Post
+      </button>
+    </div>
+  )
+
   return (
-    <div className="bg-surface text-on-surface antialiased transition-colors duration-300">
-      <aside className="fixed top-0 left-0 z-40 hidden h-screen w-64 flex-col bg-slate-50 p-6 text-sm font-medium dark:bg-slate-950 md:flex">
-        <div className="mb-8 text-lg font-black tracking-tighter text-blue-900 dark:text-white">
-          AlumniConnect
-          <div className="mt-1 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
-            The Digital Curator
-          </div>
+    <AppShell actions={dashboardActions} title="Dashboard">
+      {status.message && (
+        <div className="mb-5">
+          <StatusNotice message={status.message} tone={status.type || 'neutral'} />
         </div>
+      )}
 
-        <nav className="flex-1 space-y-2">
-          <a
-            className="flex items-center gap-3 rounded-lg bg-white px-4 py-3 font-semibold text-blue-900 shadow-sm dark:bg-slate-800 dark:text-white"
-            href="/dashboard"
-          >
-            <span className="material-symbols-outlined">dashboard</span>
-            Dashboard
-          </a>
-          <a
-            className="flex items-center gap-3 rounded-lg px-4 py-3 text-slate-500 transition-all hover:translate-x-1 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50"
-            href="/search"
-          >
-            <span className="material-symbols-outlined">search</span>
-            Search
-          </a>
-          <a
-            className="flex items-center gap-3 rounded-lg px-4 py-3 text-slate-500 transition-all hover:translate-x-1 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50"
-            href="/messages"
-          >
-            <span className="material-symbols-outlined">chat</span>
-            Messages
-          </a>
-          <a
-            className="flex items-center gap-3 rounded-lg px-4 py-3 text-slate-500 transition-all hover:translate-x-1 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50"
-            href="/mentorship"
-          >
-            <span className="material-symbols-outlined">school</span>
-            Mentorship
-          </a>
-          <a
-            className="flex items-center gap-3 rounded-lg px-4 py-3 text-slate-500 transition-all hover:translate-x-1 hover:bg-slate-200/50 dark:text-slate-400 dark:hover:bg-slate-800/50"
-            href="/profile"
-          >
-            <span className="material-symbols-outlined">person</span>
-            My Profile
-          </a>
-        </nav>
+      {userState.loading ? (
+        <StatusNotice message="Loading..." />
+      ) : userState.error ? (
+        <StatusNotice message="Data not available right now" />
+      ) : (
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+          <section className="space-y-6 xl:col-span-8">
+            <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="mb-2 text-lg font-black text-blue-950">Hello, {userName}</h2>
+              <p className="text-sm text-slate-600">
+                College: {userState.data?.collegeName || 'Not available'}
+              </p>
+              <p className="text-sm text-slate-600">
+                Role: {userState.data?.role || 'Not available'}
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                Skills:{' '}
+                {userState.data?.skills?.length
+                  ? userState.data.skills.join(', ')
+                  : 'Data not available right now'}
+              </p>
+              <p className="text-sm text-slate-600">
+                Interests:{' '}
+                {userState.data?.interests?.length
+                  ? userState.data.interests.join(', ')
+                  : 'Data not available right now'}
+              </p>
+            </article>
 
-        <button
-          className="mt-auto w-full rounded-xl bg-gradient-to-br from-primary to-primary-container py-4 text-sm font-bold text-white shadow-lg shadow-blue-900/20 transition-all active:scale-95"
-          type="button"
-        >
-          New Post
-        </button>
-      </aside>
-
-      <main className="flex min-h-screen flex-col md:ml-64">
-        <header className="fixed top-0 right-0 z-50 flex h-16 items-center justify-between bg-white/80 px-8 tracking-tight shadow-[0_20px_50px_rgba(23,28,31,0.06)] backdrop-blur-md dark:bg-slate-900/80 md:left-64">
-          <div className="hidden md:block">
-            <h1 className="text-xl font-bold tracking-tighter text-blue-900 dark:text-white">
-              AlumniConnect
-            </h1>
-          </div>
-
-          <div className="flex flex-1 items-center justify-end gap-6">
-            <div className="relative hidden w-full max-w-xs sm:block">
-              <span
-                className="material-symbols-outlined absolute top-1/2 left-3 -translate-y-1/2 text-slate-400"
-                style={{ fontSize: '18px' }}
-              >
-                search
-              </span>
-              <input
-                className="w-full rounded-full border-none bg-slate-100/50 py-2 pr-4 pl-10 text-sm outline-none transition-all focus:ring-2 focus:ring-primary/20 dark:bg-slate-800/50"
-                placeholder="Search the network..."
-                type="text"
+            <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="mb-4 text-lg font-black text-blue-950">Recent Chats</h2>
+              <LoadingOrFallback
+                empty={chats.length === 0}
+                emptyText="No chats yet"
+                error={Boolean(chatsState.error)}
+                loading={chatsState.loading}
+                loadingText="Loading..."
               />
-            </div>
+              {!chatsState.loading &&
+                !chatsState.error &&
+                chats.map((chat) => (
+                  <div
+                    className="mb-3 rounded-lg border border-slate-200 p-3"
+                    key={chat.chatId || chat.user?.id}
+                  >
+                    <p className="font-semibold text-slate-900">{chat.user?.name}</p>
+                    <p className="text-xs text-slate-600">{chat.user?.collegeName}</p>
+                    <p className="mt-1 truncate text-xs text-slate-500">
+                      {chat.lastMessage?.content || 'No messages yet'}
+                    </p>
+                    <div className="mt-2">
+                      <Link
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700"
+                        to={`/messages?with=${chat.user?.id}`}
+                      >
+                        Open Chat
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+            </article>
 
-            <div className="flex items-center gap-3 border-l border-slate-200 pl-4 dark:border-slate-800">
-              <div className="hidden text-right sm:block">
-                <p className="text-xs font-bold text-blue-900 dark:text-white">Alexander Chen</p>
-                <p className="text-[10px] text-slate-500">Class of &apos;21</p>
-              </div>
-              <img
-                alt="User profile avatar"
-                className="h-9 w-9 rounded-full object-cover ring-2 ring-white shadow-sm dark:ring-slate-800"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuBz92YByoUtYp3awQGD2sEx8l92DgyJ6hzn570NLuLgV_UaHMhz-1I7PgiALXxnLZKU1CBH5L80S3y5b55SqGevg-MrIOCFXqx5vbLDj-Vqo6zkLXZFh2KZWgQ90pQEh2-lOsy4kQVqHudsRmWeCxx36RiapgWb8Q8ZFE2JcrffvlUJF1NmZkwoMl2pqi81Fz3r06n1ZNb_IsZD_dYCf4kpx7qTbGQfPBymCLHa4OzgkMqyWwKBtTj1VNgMzkjLYiH3cTleCIA0mHY"
+            <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="mb-4 text-lg font-black text-blue-950">Feed</h2>
+              <LoadingOrFallback
+                empty={posts.length === 0}
+                emptyText="No posts yet"
+                error={Boolean(postsState.error)}
+                loading={postsState.loading}
+                loadingText="Loading..."
               />
-            </div>
-          </div>
-        </header>
-
-        <div className="mx-auto mt-16 w-full max-w-7xl space-y-12 p-8 lg:p-12">
-          <section>
-            <p className="mb-4 text-[10px] font-bold tracking-widest text-blue-600 uppercase">
-              Welcome back to the legacy
-            </p>
-            <h2 className="text-4xl leading-tight font-black tracking-tight text-primary md:text-6xl">
-              Hello,{' '}
-              <span className="bg-gradient-to-r from-blue-900 to-blue-400 bg-clip-text text-transparent">
-                Alexander
-              </span>
-              .
-            </h2>
-            <p className="mt-4 max-w-2xl text-lg leading-relaxed font-medium text-on-surface-variant">
-              Explore new opportunities within your alumni network. 42 alumni from your
-              department joined this week.
-            </p>
+              {!postsState.loading &&
+                !postsState.error &&
+                posts.map((post) => (
+                  <div className="mb-3 rounded-lg border border-slate-200 p-4" key={post.id}>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <h3 className="font-bold text-slate-900">{post.title}</h3>
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600">
+                        {post.type}
+                      </span>
+                    </div>
+                    <p className="mb-2 text-sm text-slate-700">{post.description}</p>
+                    {post.attachmentUrl && (
+                      <a
+                        className="mb-2 inline-block text-xs font-semibold text-blue-700 underline"
+                        href={post.attachmentUrl}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        View attachment
+                      </a>
+                    )}
+                    <p className="text-xs text-slate-500">
+                      Posted by {post.author?.name || 'Unknown'} |{' '}
+                      {new Date(post.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                ))}
+            </article>
           </section>
 
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-            <div className="space-y-6 lg:col-span-4">
-              <div className="rounded-2xl bg-surface-container-low p-8">
-                <div className="mb-8 flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-primary dark:text-white">Recent Chats</h3>
-                  <span className="cursor-pointer text-xs font-bold text-blue-600 hover:underline">
-                    View All
-                  </span>
-                </div>
-                <div className="space-y-6">
-                  {recentChats.map((chat) => (
-                    <div
-                      className="group flex cursor-pointer items-center gap-4 transition-transform duration-200 hover:translate-x-2"
-                      key={chat.id}
-                    >
-                      <div className="relative">
-                        <img
-                          alt={`${chat.name} avatar`}
-                          className="h-12 w-12 rounded-full object-cover"
-                          src={chat.image}
-                        />
-                        {chat.online && (
-                          <div className="absolute right-0 bottom-0 h-3 w-3 rounded-full border-2 border-surface-container-low bg-emerald-500" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold text-primary dark:text-white">
-                          {chat.name}
-                        </p>
-                        <p className="truncate text-xs text-slate-500">{chat.message}</p>
-                      </div>
-                      <span className="text-[10px] font-medium text-slate-400">{chat.time}</span>
+          <aside className="space-y-6 xl:col-span-4">
+            <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="mb-3 text-lg font-black text-blue-950">Mentor Suggestions</h2>
+              <LoadingOrFallback
+                empty={mentorSuggestions.length === 0}
+                emptyText="No mentors available"
+                error={Boolean(suggestionsState.error)}
+                loading={suggestionsState.loading}
+                loadingText="Loading..."
+              />
+              {!suggestionsState.loading &&
+                !suggestionsState.error &&
+                mentorSuggestions.map((mentor) => (
+                  <div className="mb-3" key={mentor.id}>
+                    <SuggestionCard
+                      isConnecting={connectingUserId === mentor.id}
+                      onConnect={handleConnect}
+                      user={mentor}
+                    />
+                  </div>
+                ))}
+            </article>
+
+            <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="mb-3 text-lg font-black text-blue-950">Incoming Requests</h2>
+              <LoadingOrFallback
+                empty={incomingRequests.length === 0}
+                emptyText="No users found"
+                error={Boolean(connectionsState.error)}
+                loading={connectionsState.loading}
+                loadingText="Loading..."
+              />
+              {!connectionsState.loading &&
+                !connectionsState.error &&
+                incomingRequests.map((request) => (
+                  <div className="mb-3 rounded-lg border border-slate-200 p-3" key={request.id}>
+                    <p className="font-semibold text-slate-900">{request.user?.name}</p>
+                    <p className="text-xs text-slate-600">{request.user?.collegeName}</p>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60"
+                        disabled={respondingRequestId === request.id}
+                        onClick={() => handleRespond(request.id, 'ACCEPT')}
+                        type="button"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-60"
+                        disabled={respondingRequestId === request.id}
+                        onClick={() => handleRespond(request.id, 'REJECT')}
+                        type="button"
+                      >
+                        Reject
+                      </button>
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </div>
+                ))}
+            </article>
+          </aside>
+        </div>
+      )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-2xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm">
-                  <p className="mb-1 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
-                    Network
-                  </p>
-                  <p className="text-2xl font-black text-primary">1.2k</p>
-                </div>
-                <div className="rounded-2xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm">
-                  <p className="mb-1 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
-                    Events
-                  </p>
-                  <p className="text-2xl font-black text-primary">04</p>
-                </div>
-              </div>
-            </div>
+      {isPostModalOpen && (
+        <div className="modal modal-open" role="dialog">
+          <div className="modal-box">
+            <h3 className="text-lg font-bold">Create New Post</h3>
+            <form className="mt-4 space-y-3" onSubmit={handleCreatePost}>
+              <select
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                onChange={(event) =>
+                  setPostForm((current) => ({
+                    ...current,
+                    type: event.target.value,
+                  }))
+                }
+                value={postForm.type}
+              >
+                <option value="GENERAL">General</option>
+                <option value="CERTIFICATE">Certificate</option>
+                <option value="HACKATHON">Hackathon</option>
+                <option value="EVENT">Event</option>
+              </select>
 
-            <div className="space-y-8 lg:col-span-8">
-              <div className="flex items-center gap-4 rounded-2xl border border-outline-variant/5 bg-white p-6 shadow-sm dark:bg-slate-900">
-                <img
-                  alt="Your avatar"
-                  className="h-10 w-10 rounded-full object-cover"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuAtgtI9V89gG7IDFPH-z9F4EH3jske1Q8y1oflJygRmaYstOFjUR5p18vfU3oouQ0H2LeM7ke6YYazM5G5aVl9slDtFafVPpBO1C3QgtMfBumuW2ajiTKqK3L9Q2yXHh4aJk-7IAolsbYP1EzBAwNKajuZD2nyGvWIvTSfv-RxFEuVpG9WCXPqksFHrN59hfDSPC1tpF-odSgGzW-c-brFh0chX9Xi6syXkdcc7tExrf3-P0K_-QvpqzQdfLzjQJg9f7lMD1HS3Nmw"
-                />
-                <div className="flex-1 cursor-text rounded-full bg-slate-50 px-5 py-3 text-sm font-medium text-slate-400 transition-colors hover:bg-slate-100 dark:bg-slate-800">
-                  What&apos;s happening in your professional world?
-                </div>
+              <input
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                onChange={(event) =>
+                  setPostForm((current) => ({
+                    ...current,
+                    title: event.target.value,
+                  }))
+                }
+                placeholder="Title"
+                value={postForm.title}
+              />
+
+              <textarea
+                className="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                onChange={(event) =>
+                  setPostForm((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+                placeholder="Description"
+                value={postForm.description}
+              />
+
+              <input
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                onChange={(event) =>
+                  setPostForm((current) => ({
+                    ...current,
+                    attachmentUrl: event.target.value,
+                  }))
+                }
+                placeholder="Attachment URL (optional)"
+                value={postForm.attachmentUrl}
+              />
+
+              <div className="modal-action">
                 <button
-                  className="material-symbols-outlined text-slate-400 transition-colors hover:text-primary"
+                  className="btn"
+                  onClick={() => setIsPostModalOpen(false)}
                   type="button"
                 >
-                  image
+                  Cancel
                 </button>
-              </div>
-
-              <article className="overflow-hidden rounded-2xl bg-surface-container-lowest shadow-sm transition-shadow duration-500 hover:shadow-xl">
-                <div className="p-8">
-                  <div className="mb-6 flex items-start justify-between">
-                    <div className="flex gap-4">
-                      <img
-                        alt="Amanda Stark"
-                        className="h-12 w-12 rounded-xl object-cover"
-                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuD5xKSuy2VpXkpFmPtU3Cgye_-Z08gwpw3Wc6dWZSTAFhnleowxs4ycdc4-LzhcOSr-ciIGjPzN5Bw24s1B9fRsMMJtP72hs8qfrOf8hcmD46yCCepkZQvy2GTs_9PMvr1EZcxDJzL47-hY5LYB94aKNJQgc71opc8kYUdbhLvgYLVfKUFzZGkIg01du5pPiiYEid6eVXdPWXvqRnW9b8QCCQ0Lh0HWEakxJuis3sO1oMCENahy4-4mgXKnDY7EOXX6cB9CH8odhNE"
-                      />
-                      <div>
-                        <h4 className="text-base font-bold text-primary dark:text-white">
-                          Global Tech Summit 2024
-                        </h4>
-                        <p className="text-xs text-slate-500">
-                          Posted by <span className="font-bold text-blue-600">Amanda Stark</span>{' '}
-                           |  2 hours ago
-                        </p>
-                      </div>
-                    </div>
-                    <div className="rounded-full bg-secondary-container px-3 py-1 text-[10px] font-bold tracking-widest text-on-secondary-container uppercase">
-                      Event
-                    </div>
-                  </div>
-
-                  <p className="mb-6 leading-relaxed text-on-surface-variant">
-                    Excited to announce our annual alumni tech gathering. This year we&apos;re
-                    focusing on the intersection of AI and Ethics in the workplace.
-                  </p>
-
-                  <div className="relative mb-6 aspect-video overflow-hidden rounded-xl">
-                    <img
-                      alt="Conference hall visual"
-                      className="h-full w-full object-cover"
-                      src="https://lh3.googleusercontent.com/aida-public/AB6AXuAHnbsuggyaDiT1BUEWUXKc0ca_NCZT2IsfH5cs1Qq0ZPwMmPMFSOhZwPGudmv7r8lyVIe87MXwR_Ma3WeBqZK1cZQpIHiU98r9cSt-SsyfM0wtVjbYzV0qqbwPUqCvyY2CUn28dXbXaicpQX8rXyc2rj8et8h5K7ju1u1mx0Z61AQWf5igOF5gzPCVFog5lZiW6aTlyXumH_z7kLQXb4dfAtzK9CYd4qmQY1cUcouFAiVyFMpwb7rAy1w4OTjRn7UeTokcpfPDe6c"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-primary/40 to-transparent" />
-                  </div>
-
-                  <div className="flex items-center gap-6">
-                    <button className="flex items-center gap-2 text-sm font-bold text-slate-400 transition-colors hover:text-blue-600" type="button">
-                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                        favorite
-                      </span>
-                      124
-                    </button>
-                    <button className="flex items-center gap-2 text-sm font-bold text-slate-400 transition-colors hover:text-blue-600" type="button">
-                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                        chat_bubble
-                      </span>
-                      18
-                    </button>
-                    <button className="ml-auto flex items-center gap-2 text-sm font-bold text-slate-400 transition-colors hover:text-blue-600" type="button">
-                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                        share
-                      </span>
-                    </button>
-                  </div>
-                </div>
-              </article>
-
-              <article className="rounded-2xl bg-surface-container-lowest p-8 shadow-sm">
-                <div className="mb-6 flex items-start justify-between">
-                  <div className="flex gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-container text-on-primary-container">
-                      <span className="material-symbols-outlined">school</span>
-                    </div>
-                    <div>
-                      <h4 className="text-base font-bold text-primary dark:text-white">
-                        Mentorship Milestone
-                      </h4>
-                      <p className="text-xs text-slate-500">System Update  |  5 hours ago</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="rounded-xl border-l-4 border-blue-900 bg-slate-50 p-6 dark:bg-slate-800">
-                  <p className="text-sm leading-relaxed font-medium italic text-on-surface-variant">
-                    &quot;Your profile matches 5 new students seeking guidance in Digital
-                    Strategy.&quot;
-                  </p>
-                </div>
-                <button className="group mt-6 flex items-center gap-2 text-sm font-black text-blue-900 dark:text-blue-400" type="button">
-                  View Matches
-                  <span className="material-symbols-outlined transition-transform group-hover:translate-x-1">
-                    arrow_forward
-                  </span>
-                </button>
-              </article>
-            </div>
-          </div>
-
-          <section>
-            <div className="mb-8 flex flex-col items-end justify-between gap-6 md:flex-row">
-              <div>
-                <h3 className="text-2xl font-black tracking-tight text-primary dark:text-white">
-                  Suggested Mentors
-                </h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  Based on your shared history in Marketing
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <button className="flex h-10 w-10 items-center justify-center rounded-full border border-outline-variant text-slate-400 transition-colors hover:bg-slate-100" type="button">
-                  <span className="material-symbols-outlined">chevron_left</span>
-                </button>
-                <button className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white transition-colors hover:bg-primary-container" type="button">
-                  <span className="material-symbols-outlined">chevron_right</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="-mx-2 flex gap-6 overflow-x-auto px-2 pb-4 no-scrollbar">
-              {mentorCards.map((mentor) => (
-                <div
-                  className="group flex min-w-[280px] flex-col items-center rounded-2xl border border-outline-variant/10 bg-white p-6 text-center shadow-sm transition-all hover:border-blue-900/20 dark:bg-slate-900"
-                  key={mentor.id}
+                <button
+                  className="btn btn-primary"
+                  disabled={isSubmittingPost}
+                  type="submit"
                 >
-                  <img
-                    alt={`${mentor.name} headshot`}
-                    className="mb-4 h-20 w-20 rounded-full object-cover"
-                    src={mentor.image}
-                  />
-                  <h5 className="font-bold text-primary dark:text-white">{mentor.name}</h5>
-                  <p className="mb-4 text-xs text-slate-500">{mentor.role}</p>
-                  <div className="mb-6 flex gap-2">
-                    {mentor.tags.map((tag) => (
-                      <span
-                        className="rounded-full bg-slate-100 px-3 py-1 text-[9px] font-bold tracking-tighter text-slate-500 uppercase dark:bg-slate-800"
-                        key={tag}
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                  <button className="w-full rounded-lg bg-surface-container-highest py-2 text-xs font-bold text-primary transition-all hover:bg-primary hover:text-white" type="button">
-                    Connect
-                  </button>
-                </div>
-              ))}
-            </div>
-          </section>
+                  {isSubmittingPost ? 'Posting...' : 'Post'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-
-        <footer className="mt-auto flex w-full flex-col items-center justify-between gap-4 border-t border-slate-200/20 bg-slate-100 px-8 py-12 text-xs tracking-widest uppercase dark:border-slate-800/20 dark:bg-slate-950 md:flex-row">
-          <div className="font-bold text-blue-900 dark:text-white">AlumniConnect</div>
-          <div className="text-slate-400 dark:text-slate-500">
-            (c) 2024 AlumniConnect. Building a Legacy.
-          </div>
-          <div className="flex gap-8">
-            <a
-              className="text-slate-400 transition-colors hover:text-blue-600 dark:text-slate-500 dark:hover:text-blue-300"
-              href="#"
-            >
-              About Us
-            </a>
-            <a
-              className="text-slate-400 transition-colors hover:text-blue-600 dark:text-slate-500 dark:hover:text-blue-300"
-              href="#"
-            >
-              Privacy Policy
-            </a>
-            <a
-              className="text-slate-400 transition-colors hover:text-blue-600 dark:text-slate-500 dark:hover:text-blue-300"
-              href="#"
-            >
-              Contact
-            </a>
-          </div>
-        </footer>
-      </main>
-
-      <nav className="fixed bottom-0 right-0 left-0 z-50 flex h-16 items-center justify-around border-t border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900 md:hidden">
-        <a className="flex flex-col items-center text-blue-900 dark:text-blue-400" href="/dashboard">
-          <span className="material-symbols-outlined">dashboard</span>
-        </a>
-        <a className="flex flex-col items-center text-slate-400" href="/search">
-          <span className="material-symbols-outlined">search</span>
-        </a>
-        <a className="flex flex-col items-center text-slate-400" href="/messages">
-          <span className="material-symbols-outlined">chat</span>
-        </a>
-        <a className="flex flex-col items-center text-slate-400" href="/profile">
-          <span className="material-symbols-outlined">person</span>
-        </a>
-      </nav>
-    </div>
+      )}
+    </AppShell>
   )
 }
 

@@ -48,7 +48,12 @@ const initialAddForm = {
 
 const getApiMessage = (error, fallbackMessage) => {
   if (!error?.response) {
-    return 'Unable to connect to backend server at http://localhost:5000. Please start backend and try again.'
+    return 'Something went wrong. Please try again.'
+  }
+
+  const statusCode = Number(error.response?.status || 0)
+  if (statusCode >= 500) {
+    return 'Something went wrong. Please try again.'
   }
 
   return error?.response?.data?.message || fallbackMessage

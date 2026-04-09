@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 function MentorshipFooter() {
   return (
     <footer className="w-full border-t border-slate-200/20 bg-slate-100 px-8 py-12 dark:border-slate-800/20 dark:bg-slate-950">
@@ -10,30 +12,30 @@ function MentorshipFooter() {
         </div>
 
         <div className="flex gap-8 text-xs tracking-widest uppercase">
-          <a
-            className="text-slate-400 opacity-80 transition-all hover:opacity-100 hover:text-blue-600 dark:text-slate-500 dark:hover:text-blue-300"
-            href="#"
+          <Link
+            className="text-slate-400 opacity-80 transition-all hover:text-blue-600 hover:opacity-100 dark:text-slate-500 dark:hover:text-blue-300"
+            to="/about"
           >
             About Us
-          </a>
-          <a
-            className="text-slate-400 opacity-80 transition-all hover:opacity-100 hover:text-blue-600 dark:text-slate-500 dark:hover:text-blue-300"
-            href="#"
+          </Link>
+          <Link
+            className="text-slate-400 opacity-80 transition-all hover:text-blue-600 hover:opacity-100 dark:text-slate-500 dark:hover:text-blue-300"
+            to="/privacy"
           >
             Privacy Policy
-          </a>
-          <a
-            className="text-slate-400 opacity-80 transition-all hover:opacity-100 hover:text-blue-600 dark:text-slate-500 dark:hover:text-blue-300"
-            href="#"
+          </Link>
+          <Link
+            className="text-slate-400 opacity-80 transition-all hover:text-blue-600 hover:opacity-100 dark:text-slate-500 dark:hover:text-blue-300"
+            to="/terms"
           >
             Terms of Service
-          </a>
-          <a
-            className="text-slate-400 opacity-80 transition-all hover:opacity-100 hover:text-blue-600 dark:text-slate-500 dark:hover:text-blue-300"
-            href="#"
+          </Link>
+          <Link
+            className="text-slate-400 opacity-80 transition-all hover:text-blue-600 hover:opacity-100 dark:text-slate-500 dark:hover:text-blue-300"
+            to="/contact"
           >
             Contact
-          </a>
+          </Link>
         </div>
       </div>
     </footer>

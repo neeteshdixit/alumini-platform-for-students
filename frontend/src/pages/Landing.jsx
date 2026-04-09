@@ -13,7 +13,7 @@ function Landing() {
 
       <main className="pt-16">
         <Hero />
-        <section className="bg-surface px-6 pb-12 md:px-8">
+        <section className="bg-surface px-6 pb-12 md:px-8" id="college-selector">
           <div className="mx-auto w-full max-w-5xl -translate-y-10 md:-translate-y-14">
             <CollegeSelector />
           </div>

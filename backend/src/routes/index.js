@@ -14,6 +14,7 @@ router.use('/api', usersRouter)
 router.use('/api', connectionsRouter)
 router.use('/api', messagesRouter)
 router.use('/api', postsRouter)
+router.use('/api/colleges', collegeRouter)
 router.use('/api', collegeRouter)
 
 // Backward-compatible aliases
@@ -22,6 +23,7 @@ router.use('/api/v1', usersRouter)
 router.use('/api/v1', connectionsRouter)
 router.use('/api/v1', messagesRouter)
 router.use('/api/v1', postsRouter)
+router.use('/api/v1/colleges', collegeRouter)
 router.use('/api/v1', collegeRouter)
 
 export default router
