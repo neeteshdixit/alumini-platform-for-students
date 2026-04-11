@@ -21,6 +21,20 @@ import { issueOtpForUser, verifyUserOtp } from '../services/otp.service.js'
 
 const normalizeEmail = (value) => value.trim().toLowerCase()
 
+const normalizeMobileNumber = (value) => {
+  const digits = String(value || '').replace(/\D/g, '')
+  return digits || ''
+}
+
+const isEmailLike = (value) => {
+  return String(value || '').includes('@')
+}
+
+const isMobileLike = (value) => {
+  const digits = normalizeMobileNumber(value)
+  return digits.length >= 7 && digits.length <= 20
+}
+
 const splitName = (name) => {
   const compact = name.trim().replace(/\s+/g, ' ')
   const [firstName, ...rest] = compact.split(' ')
@@ -84,7 +98,7 @@ const findCollegeByEmailDomain = async (emailDomain) => {
 
   return prisma.college.findUnique({
     where: {
-      emailDomain,
+      emailDomain: emailDomain.trim().toLowerCase(),
     },
   })
 }
@@ -139,10 +153,11 @@ const ensureCollege = async ({ collegeId, collegeName, email }) => {
   throw new AppError('collegeId or collegeName is required.', 400)
 }
 
-const findUserForLogin = async ({ email, enrollmentNumber, identifier }) => {
+const findUserForLogin = async ({ email, enrollmentNumber, mobileNumber, identifier }) => {
   const normalizedEmail = email ? normalizeEmail(email) : null
   const enrollment = enrollmentNumber?.trim()
   const lookup = identifier?.trim()
+  const normalizedMobile = normalizeMobileNumber(mobileNumber || '')
 
   if (normalizedEmail) {
     return prisma.user.findUnique({
@@ -158,14 +173,32 @@ const findUserForLogin = async ({ email, enrollmentNumber, identifier }) => {
     })
   }
 
+  if (normalizedMobile) {
+    return prisma.user.findFirst({
+      where: {
+        mobileNumber: normalizedMobile,
+      },
+      include: { college: true, profile: true },
+    })
+  }
+
   if (!lookup) {
     return null
   }
 
-  const looksLikeEmail = lookup.includes('@')
-  if (looksLikeEmail) {
+  if (isEmailLike(lookup)) {
     return prisma.user.findUnique({
       where: { email: normalizeEmail(lookup) },
+      include: { college: true, profile: true },
+    })
+  }
+
+  if (isMobileLike(lookup)) {
+    const lookupMobile = normalizeMobileNumber(lookup)
+    return prisma.user.findFirst({
+      where: {
+        mobileNumber: lookupMobile,
+      },
       include: { college: true, profile: true },
     })
   }
@@ -215,6 +248,7 @@ export const signup = asyncHandler(async (req, res) => {
     role,
     name,
     email,
+    mobileNumber,
     password,
     collegeId,
     collegeName,
@@ -222,6 +256,7 @@ export const signup = asyncHandler(async (req, res) => {
   } = req.body
 
   const normalizedEmail = normalizeEmail(email)
+  const normalizedMobile = normalizeMobileNumber(mobileNumber)
   const existingByEmail = await prisma.user.findUnique({
     where: {
       email: normalizedEmail,
@@ -230,6 +265,21 @@ export const signup = asyncHandler(async (req, res) => {
 
   if (existingByEmail) {
     throw new AppError('Email already exists.', 409)
+  }
+
+  if (normalizedMobile) {
+    const existingByMobile = await prisma.user.findFirst({
+      where: {
+        mobileNumber: normalizedMobile,
+      },
+      select: {
+        id: true,
+      },
+    })
+
+    if (existingByMobile) {
+      throw new AppError('Mobile number already exists.', 409)
+    }
   }
 
   if (role === 'ALUMNI' && enrollmentNumber) {
@@ -250,6 +300,18 @@ export const signup = asyncHandler(async (req, res) => {
     email: normalizedEmail,
   })
 
+  const emailDomain = normalizedEmail.includes('@')
+    ? normalizedEmail.split('@')[1]
+    : ''
+  if (
+    role === 'STUDENT' &&
+    college.emailDomain &&
+    emailDomain &&
+    college.emailDomain.toLowerCase() !== emailDomain.toLowerCase()
+  ) {
+    throw new AppError('Student email must match your college email domain.', 400)
+  }
+
   const { firstName, lastName } = splitName(name)
   const passwordHash = await bcrypt.hash(password, 12)
   const currentYear = new Date().getFullYear()
@@ -257,6 +319,7 @@ export const signup = asyncHandler(async (req, res) => {
   const createdUser = await prisma.user.create({
     data: {
       email: normalizedEmail,
+      mobileNumber: normalizedMobile || null,
       enrollmentNumber: role === 'ALUMNI' ? enrollmentNumber : null,
       passwordHash,
       collegeId: college.id,
@@ -378,11 +441,12 @@ export const resendOtp = asyncHandler(async (req, res) => {
 })
 
 export const login = asyncHandler(async (req, res) => {
-  const { email, enrollmentNumber, identifier, password } = req.body
+  const { email, enrollmentNumber, mobileNumber, identifier, password } = req.body
 
   const user = await findUserForLogin({
     email,
     enrollmentNumber,
+    mobileNumber,
     identifier,
   })
 

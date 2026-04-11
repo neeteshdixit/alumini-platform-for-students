@@ -24,7 +24,7 @@ function Mentorship() {
           <p className="text-sm text-slate-600">Loading connections...</p>
         )}
         {connectionsQuery.isError && (
-          <p className="text-sm text-slate-600">Data not available right now</p>
+          <p className="text-sm text-slate-600">Something went wrong</p>
         )}
 
         <div className="space-y-3">

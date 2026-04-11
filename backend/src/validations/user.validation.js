@@ -2,6 +2,13 @@ import { z } from 'zod'
 
 const domainSchema = z.enum(['tech', 'non-tech', 'both'])
 
+const mobileNumberSchema = z
+  .string()
+  .trim()
+  .min(7)
+  .max(20)
+  .regex(/^[0-9+\-\s()]+$/, 'Mobile number can only contain digits and separators.')
+
 const profileUrlSchema = z
   .string()
   .trim()
@@ -18,6 +25,7 @@ const profileUrlSchema = z
 
 export const updateMeSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
+  mobileNumber: mobileNumberSchema.optional(),
   domain: domainSchema.optional(),
   skills: z.array(z.string().trim().min(1).max(60)).max(30).optional(),
   interests: z.array(z.string().trim().min(1).max(60)).max(30).optional(),

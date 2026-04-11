@@ -16,6 +16,11 @@ const includeUserShape = {
   profile: true,
 }
 
+const normalizeMobileNumber = (value) => {
+  const digits = String(value || '').replace(/\D/g, '')
+  return digits || null
+}
+
 const splitName = (name) => {
   const compact = name.trim().replace(/\s+/g, ' ')
   const [firstName, ...rest] = compact.split(' ')
@@ -242,14 +247,20 @@ export const updateMe = asyncHandler(async (req, res) => {
     linkedinUrl,
     githubUrl,
     profileImage,
+    mobileNumber,
   } = req.body
 
+  const userUpdate = {}
   const profileUpdate = {}
 
   if (name) {
     const { firstName, lastName } = splitName(name)
     profileUpdate.firstName = firstName
     profileUpdate.lastName = lastName
+  }
+
+  if ('mobileNumber' in req.body) {
+    userUpdate.mobileNumber = normalizeMobileNumber(mobileNumber)
   }
 
   if (Array.isArray(skills)) {
@@ -288,26 +299,37 @@ export const updateMe = asyncHandler(async (req, res) => {
     profileUpdate.avatarUrl = normalizeOptionalText(profileImage)
   }
 
-  if (!Object.keys(profileUpdate).length) {
+  if (!Object.keys(profileUpdate).length && !Object.keys(userUpdate).length) {
     throw new AppError('No profile fields were provided.', 400)
   }
 
-  const updated = await prisma.user.update({
-    where: {
-      id: userId,
-    },
-    data: {
-      profile: {
-        update: profileUpdate,
+  try {
+    const updated = await prisma.user.update({
+      where: {
+        id: userId,
       },
-    },
-    include: includeUserShape,
-  })
+      data: {
+        ...userUpdate,
+        profile: Object.keys(profileUpdate).length
+          ? {
+              update: profileUpdate,
+            }
+          : undefined,
+      },
+      include: includeUserShape,
+    })
 
-  return sendSuccess(res, {
-    message: 'Profile updated successfully.',
-    user: buildPublicUser(updated),
-  })
+    return sendSuccess(res, {
+      message: 'Profile updated successfully.',
+      user: buildPublicUser(updated),
+    })
+  } catch (error) {
+    if (error?.code === 'P2002') {
+      throw new AppError('Mobile number already exists.', 409)
+    }
+
+    throw error
+  }
 })
 
 export const uploadProfileImage = asyncHandler(async (req, res) => {

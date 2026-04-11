@@ -2,6 +2,13 @@ import { z } from 'zod'
 
 const roleSchema = z.enum(['STUDENT', 'ALUMNI'])
 
+const mobileNumberSchema = z
+  .string()
+  .trim()
+  .min(7, 'Mobile number is required.')
+  .max(20, 'Mobile number is too long.')
+  .regex(/^[0-9+\-\s()]+$/, 'Mobile number can only contain digits and separators.')
+
 export const signupSchema = z
   .object({
     role: roleSchema,
@@ -11,6 +18,7 @@ export const signupSchema = z
       .min(2, 'Name must be at least 2 characters.')
       .max(120, 'Name must be at most 120 characters.'),
     email: z.string().trim().email('A valid email is required for OTP verification.'),
+    mobileNumber: mobileNumberSchema,
     password: z
       .string()
       .min(8, 'Password must be at least 8 characters.')
@@ -55,6 +63,7 @@ export const loginSchema = z
   .object({
     email: z.string().trim().email().optional(),
     enrollmentNumber: z.string().trim().min(4).max(80).optional(),
+    mobileNumber: mobileNumberSchema.optional(),
     identifier: z.string().trim().min(3).max(120).optional(),
     password: z
       .string()
@@ -62,9 +71,10 @@ export const loginSchema = z
       .max(72, 'Password is too long.'),
   })
   .refine(
-    (data) => Boolean(data.email || data.enrollmentNumber || data.identifier),
+    (data) =>
+      Boolean(data.email || data.enrollmentNumber || data.mobileNumber || data.identifier),
     {
-      message: 'Provide email, enrollmentNumber, or identifier to login.',
+      message: 'Provide email, enrollmentNumber, mobileNumber, or identifier to login.',
       path: ['identifier'],
     },
   )

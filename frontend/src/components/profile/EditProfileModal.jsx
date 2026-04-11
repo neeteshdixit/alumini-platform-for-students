@@ -11,6 +11,7 @@ const toArray = (value = '') => {
 
 const initialFormState = {
   name: '',
+  mobileNumber: '',
   domain: 'both',
   skills: '',
   interests: '',
@@ -39,6 +40,7 @@ function EditProfileModal({
   const [form, setForm] = useState({
     ...initialFormState,
     name: initialData?.name || '',
+    mobileNumber: initialData?.mobileNumber || '',
     domain: initialData?.domain || 'both',
     skills: toCsv(initialData?.skills || []),
     interests: toCsv(initialData?.interests || []),
@@ -87,6 +89,11 @@ function EditProfileModal({
               profileImage: form.profileImage.trim(),
             }
 
+            const mobileNumber = form.mobileNumber.trim()
+            if (mobileNumber) {
+              payload.mobileNumber = mobileNumber
+            }
+
             if (!payload.name) {
               setLocalError('Name is required.')
               return
@@ -108,6 +115,23 @@ function EditProfileModal({
                 }
                 placeholder="Your full name"
                 value={form.name}
+              />
+            </label>
+
+            <label className="form-control">
+              <span className="mb-1 text-sm font-semibold text-slate-700">
+                Mobile Number
+              </span>
+              <input
+                className="input input-bordered w-full"
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    mobileNumber: event.target.value,
+                  }))
+                }
+                placeholder="Your mobile number"
+                value={form.mobileNumber}
               />
             </label>
 

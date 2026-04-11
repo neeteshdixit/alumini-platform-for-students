@@ -114,6 +114,36 @@ export const getPosts = () => {
   return api.get('/api/posts').then(getData)
 }
 
+export const togglePostLike = (postId) => {
+  return api.post(`/api/posts/${postId}/like`, {}).then(getData)
+}
+
+export const addPostComment = ({ postId, content }) => {
+  return api.post(`/api/posts/${postId}/comment`, { content }).then(getData)
+}
+
+export const sharePost = (postId) => {
+  return api.post(`/api/posts/${postId}/share`, {}).then(getData)
+}
+
+export const getOpportunities = (params = {}) => {
+  return api.get('/api/opportunities', { params }).then(getData)
+}
+
+export const getOpportunityMatches = () => {
+  return api.get('/api/opportunities/matches/me').then(getData)
+}
+
+export const createOpportunity = (payload) => {
+  return api.post('/api/opportunities', payload).then(getData)
+}
+
+export const applyOpportunity = ({ opportunityId, coverNote }) => {
+  return api
+    .post(`/api/opportunities/${opportunityId}/apply`, { coverNote })
+    .then(getData)
+}
+
 export const uploadProfileImage = async (file) => {
   const fileData = await fileToDataUrl(file)
   return api
@@ -123,3 +153,5 @@ export const uploadProfileImage = async (file) => {
     })
     .then(getData)
 }
+
+export const uploadMediaFile = uploadProfileImage

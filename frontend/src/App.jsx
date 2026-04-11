@@ -6,6 +6,7 @@ import InfoPage from './pages/InfoPage'
 import Landing from './pages/Landing'
 import Mentorship from './pages/Mentorship'
 import Messages from './pages/Messages'
+import Opportunities from './pages/Opportunities'
 import Profile from './pages/Profile'
 import Search from './pages/Search'
 import ProtectedRoute from './routes/ProtectedRoute'
@@ -26,18 +27,21 @@ function App() {
     <Routes>
       <Route element={<Landing />} path="/" />
       <Route
-        element={
-          <InfoPage
-            description="Events data is not available right now."
-            title="Events"
-          />
-        }
+        element={<Navigate replace to="/opportunities?type=EVENT" />}
         path="/events"
       />
       <Route
         element={
+          <ProtectedRoute>
+            <Opportunities />
+          </ProtectedRoute>
+        }
+        path="/opportunities"
+      />
+      <Route
+        element={
           <InfoPage
-            description="News data is not available right now."
+            description="Live college announcements and platform news will appear here as the timeline expands. For now, use Dashboard and Opportunities for active content."
             title="News"
           />
         }
@@ -46,7 +50,7 @@ function App() {
       <Route
         element={
           <InfoPage
-            description="About information is not available right now."
+            description="AlumniConnect is a college-first mentorship and networking ecosystem built for verified students and alumni."
             title="About Us"
           />
         }
@@ -55,7 +59,7 @@ function App() {
       <Route
         element={
           <InfoPage
-            description="Privacy policy content is not available right now."
+            description="Your profile, network, and messages are protected with JWT authentication, role checks, and encrypted chat storage."
             title="Privacy Policy"
           />
         }
@@ -64,7 +68,7 @@ function App() {
       <Route
         element={
           <InfoPage
-            description="Terms content is not available right now."
+            description="Use the platform respectfully, keep your profile accurate, and only access information you are authorized to view."
             title="Terms of Service"
           />
         }
@@ -73,7 +77,7 @@ function App() {
       <Route
         element={
           <InfoPage
-            description="Contact details are not available right now."
+            description="Support is handled through your college admin channel and the platform admin workflow."
             title="Contact"
           />
         }

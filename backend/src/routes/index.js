@@ -4,6 +4,7 @@ import authRouter from './auth.routes.js'
 import collegeRouter from './college.routes.js'
 import connectionsRouter from './connections.routes.js'
 import messagesRouter from './messages.routes.js'
+import opportunitiesRouter from './opportunities.routes.js'
 import postsRouter from './posts.routes.js'
 import usersRouter from './users.routes.js'
 
@@ -13,6 +14,7 @@ router.use('/api', authRouter)
 router.use('/api', usersRouter)
 router.use('/api', connectionsRouter)
 router.use('/api', messagesRouter)
+router.use('/api', opportunitiesRouter)
 router.use('/api', postsRouter)
 router.use('/api/colleges', collegeRouter)
 router.use('/api', collegeRouter)
@@ -22,6 +24,7 @@ router.use('/api/v1', authRouter)
 router.use('/api/v1', usersRouter)
 router.use('/api/v1', connectionsRouter)
 router.use('/api/v1', messagesRouter)
+router.use('/api/v1', opportunitiesRouter)
 router.use('/api/v1', postsRouter)
 router.use('/api/v1/colleges', collegeRouter)
 router.use('/api/v1', collegeRouter)

@@ -3,14 +3,18 @@ import { Link, useNavigate } from 'react-router-dom'
 
 import AppShell from '../components/layout/AppShell'
 import {
+  addPostComment,
   createPost,
   fetchMessages,
   getConnections,
   getMe,
   getPosts,
   getUserSuggestions,
+  sharePost,
   respondConnectionRequest,
   sendConnectionRequest,
+  togglePostLike,
+  uploadMediaFile,
 } from '../services/platformApi'
 import { useAuthStore } from '../store/authStore'
 import { getErrorMessage } from '../utils/error'
@@ -20,6 +24,7 @@ const initialPostForm = {
   title: '',
   description: '',
   attachmentUrl: '',
+  mediaUrls: [],
 }
 
 const createAsyncState = () => ({
@@ -53,7 +58,7 @@ function LoadingOrFallback({ loading, error, empty, loadingText, emptyText }) {
     return <StatusNotice message={loadingText || 'Loading...'} />
   }
   if (error) {
-    return <StatusNotice message="Data not available right now" />
+    return <StatusNotice message="Something went wrong" tone="error" />
   }
   if (empty) {
     return <StatusNotice message={emptyText || 'Data not available right now'} />
@@ -137,8 +142,12 @@ function Dashboard() {
   const [isPostModalOpen, setIsPostModalOpen] = useState(false)
   const [postForm, setPostForm] = useState(initialPostForm)
   const [isSubmittingPost, setIsSubmittingPost] = useState(false)
+  const [isUploadingPostMedia, setIsUploadingPostMedia] = useState(false)
   const [connectingUserId, setConnectingUserId] = useState('')
   const [respondingRequestId, setRespondingRequestId] = useState('')
+  const [postActionKey, setPostActionKey] = useState('')
+  const [expandedCommentPostId, setExpandedCommentPostId] = useState('')
+  const [commentDrafts, setCommentDrafts] = useState({})
 
   const welcomedUserRef = useRef('')
   const mountedRef = useRef(true)
@@ -256,6 +265,129 @@ function Dashboard() {
     }
   }
 
+  const uploadPostMedia = async (files) => {
+    const selectedFiles = Array.from(files || []).filter(Boolean)
+    if (!selectedFiles.length) return
+
+    setIsUploadingPostMedia(true)
+
+    try {
+      const uploaded = []
+      for (const file of selectedFiles) {
+        const response = await uploadMediaFile(file)
+        if (response?.url) {
+          uploaded.push(response.url)
+        }
+      }
+
+      setPostForm((current) => ({
+        ...current,
+        mediaUrls: Array.from(new Set([...(current.mediaUrls || []), ...uploaded])),
+      }))
+    } catch (error) {
+      setStatus({
+        type: 'error',
+        message: getErrorMessage(error, 'Unable to upload post media.'),
+      })
+    } finally {
+      setIsUploadingPostMedia(false)
+    }
+  }
+
+  const handleToggleLike = async (postId) => {
+    setPostActionKey(`like:${postId}`)
+    setStatus({ type: '', message: '' })
+
+    try {
+      const response = await togglePostLike(postId)
+      if (response?.message) {
+        setStatus({ type: 'success', message: response.message })
+      }
+      await loadPosts()
+    } catch (error) {
+      setStatus({
+        type: 'error',
+        message: getErrorMessage(error, 'Failed to update like.'),
+      })
+    } finally {
+      setPostActionKey('')
+    }
+  }
+
+  const handleSharePost = async (post) => {
+    setPostActionKey(`share:${post.id}`)
+    setStatus({ type: '', message: '' })
+
+    try {
+      const response = await sharePost(post.id)
+      const shareText = `${post.title}\n\n${post.description}\n\nShared via AlumniConnect`
+
+      if (navigator?.share) {
+        try {
+          await navigator.share({
+            title: post.title,
+            text: shareText,
+            url: window.location.href,
+          })
+        } catch {
+          // Native share is best-effort.
+        }
+      } else if (navigator?.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(shareText)
+        } catch {
+          // Clipboard write is best-effort.
+        }
+      }
+
+      setStatus({
+        type: 'success',
+        message: response?.message || 'Post shared successfully.',
+      })
+      await loadPosts()
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        setPostActionKey('')
+        return
+      }
+
+      setStatus({
+        type: 'error',
+        message: getErrorMessage(error, 'Failed to share post.'),
+      })
+    } finally {
+      setPostActionKey('')
+    }
+  }
+
+  const handleCommentSubmit = async (postId) => {
+    const content = String(commentDrafts[postId] || '').trim()
+    if (!content) return
+
+    setPostActionKey(`comment:${postId}`)
+    setStatus({ type: '', message: '' })
+
+    try {
+      const response = await addPostComment({ postId, content })
+      if (response?.message) {
+        setStatus({ type: 'success', message: response.message })
+      }
+      setCommentDrafts((current) => ({
+        ...current,
+        [postId]: '',
+      }))
+      setExpandedCommentPostId(postId)
+      await loadPosts()
+    } catch (error) {
+      setStatus({
+        type: 'error',
+        message: getErrorMessage(error, 'Failed to add comment.'),
+      })
+    } finally {
+      setPostActionKey('')
+    }
+  }
+
   const loadDashboard = async () => {
     if (!accessToken) {
       safeSetState(setUserState, {
@@ -348,6 +480,7 @@ function Dashboard() {
         title: postForm.title,
         description: postForm.description,
         attachmentUrl: postForm.attachmentUrl || undefined,
+        mediaUrls: postForm.mediaUrls,
       })
 
       setStatus({ type: 'success', message: 'Post created successfully.' })
@@ -371,6 +504,13 @@ function Dashboard() {
         View Matches
       </button>
       <button
+        className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+        onClick={() => navigate('/opportunities')}
+        type="button"
+      >
+        Opportunities
+      </button>
+      <button
         className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-bold text-white"
         onClick={() => setIsPostModalOpen(true)}
         type="button"
@@ -391,7 +531,7 @@ function Dashboard() {
       {userState.loading ? (
         <StatusNotice message="Loading..." />
       ) : userState.error ? (
-        <StatusNotice message="Data not available right now" />
+        <StatusNotice message="Something went wrong" tone="error" />
       ) : (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
           <section className="space-y-6 xl:col-span-8">
@@ -468,17 +608,50 @@ function Dashboard() {
               {!postsState.loading &&
                 !postsState.error &&
                 posts.map((post) => (
-                  <div className="mb-3 rounded-lg border border-slate-200 p-4" key={post.id}>
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <h3 className="font-bold text-slate-900">{post.title}</h3>
+                  <article
+                    className="mb-3 rounded-2xl border border-slate-200 p-4"
+                    key={post.id}
+                  >
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="font-bold text-slate-900">
+                          {post.title || 'Untitled post'}
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Posted by {post.author?.name || 'Unknown'} |{' '}
+                          {new Date(post.createdAt).toLocaleString()}
+                        </p>
+                      </div>
                       <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600">
                         {post.type}
                       </span>
                     </div>
-                    <p className="mb-2 text-sm text-slate-700">{post.description}</p>
+
+                    <p className="mb-3 text-sm leading-6 text-slate-700">{post.description}</p>
+
+                    {post.mediaUrls?.length > 0 && (
+                      <div className="mb-3 grid grid-cols-2 gap-2">
+                        {post.mediaUrls.map((url) => (
+                          <a
+                            className="group overflow-hidden rounded-xl border border-slate-200"
+                            href={url}
+                            key={url}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            <img
+                              alt="Post media"
+                              className="h-40 w-full object-cover transition duration-300 group-hover:scale-105"
+                              src={url}
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+
                     {post.attachmentUrl && (
                       <a
-                        className="mb-2 inline-block text-xs font-semibold text-blue-700 underline"
+                        className="mb-3 inline-block text-xs font-semibold text-blue-700 underline"
                         href={post.attachmentUrl}
                         rel="noreferrer"
                         target="_blank"
@@ -486,11 +659,113 @@ function Dashboard() {
                         View attachment
                       </a>
                     )}
-                    <p className="text-xs text-slate-500">
-                      Posted by {post.author?.name || 'Unknown'} |{' '}
-                      {new Date(post.createdAt).toLocaleString()}
-                    </p>
-                  </div>
+
+                    <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold">
+                        Likes {post.likeCount || 0}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold">
+                        Comments {post.commentCount || 0}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold">
+                        Shares {post.shareCount || 0}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        className={`rounded-lg px-3 py-2 text-xs font-bold ${
+                          post.likedByMe
+                            ? 'bg-blue-900 text-white'
+                            : 'border border-slate-300 text-slate-700'
+                        }`}
+                        disabled={postActionKey === `like:${post.id}`}
+                        onClick={() => handleToggleLike(post.id)}
+                        type="button"
+                      >
+                        {post.likedByMe
+                          ? postActionKey === `like:${post.id}`
+                            ? 'Updating...'
+                            : 'Unlike'
+                          : postActionKey === `like:${post.id}`
+                            ? 'Liking...'
+                            : 'Like'}
+                      </button>
+                      <button
+                        className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
+                        onClick={() =>
+                          setExpandedCommentPostId((current) =>
+                            current === post.id ? '' : post.id,
+                          )
+                        }
+                        type="button"
+                      >
+                        Comment
+                      </button>
+                      <button
+                        className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
+                        disabled={postActionKey === `share:${post.id}`}
+                        onClick={() => handleSharePost(post)}
+                        type="button"
+                      >
+                        {postActionKey === `share:${post.id}` ? 'Sharing...' : 'Share'}
+                      </button>
+                    </div>
+
+                    {(expandedCommentPostId === post.id ||
+                      (post.comments || []).length > 0) && (
+                      <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+                        {(post.comments || []).length > 0 ? (
+                          <div className="space-y-2">
+                            {post.comments.map((comment) => (
+                              <div
+                                className="rounded-xl bg-slate-50 px-3 py-2"
+                                key={comment.id}
+                              >
+                                <p className="text-sm font-semibold text-slate-800">
+                                  {comment.author?.name || 'User'}
+                                </p>
+                                <p className="text-sm text-slate-700">{comment.content}</p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        <div className="space-y-2">
+                          <textarea
+                            className="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                            onChange={(event) =>
+                              setCommentDrafts((current) => ({
+                                ...current,
+                                [post.id]: event.target.value,
+                              }))
+                            }
+                            placeholder="Write a comment..."
+                            value={commentDrafts[post.id] || ''}
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              className="rounded-lg bg-blue-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
+                              disabled={postActionKey === `comment:${post.id}`}
+                              onClick={() => handleCommentSubmit(post.id)}
+                              type="button"
+                            >
+                              {postActionKey === `comment:${post.id}`
+                                ? 'Commenting...'
+                                : 'Post Comment'}
+                            </button>
+                            <button
+                              className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
+                              onClick={() => setExpandedCommentPostId('')}
+                              type="button"
+                            >
+                              Close
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </article>
                 ))}
             </article>
           </section>
@@ -587,7 +862,7 @@ function Dashboard() {
                     title: event.target.value,
                   }))
                 }
-                placeholder="Title"
+                placeholder="Headline (optional)"
                 value={postForm.title}
               />
 
@@ -599,9 +874,44 @@ function Dashboard() {
                     description: event.target.value,
                   }))
                 }
-                placeholder="Description"
+                placeholder="Write the post text"
                 value={postForm.description}
               />
+
+              <input
+                accept="image/png,image/jpeg,image/jpg,image/webp"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                disabled={isUploadingPostMedia}
+                multiple
+                onChange={(event) => uploadPostMedia(event.target.files)}
+                type="file"
+              />
+
+              {isUploadingPostMedia && (
+                <p className="text-xs font-semibold text-slate-500">Uploading media...</p>
+              )}
+
+              {postForm.mediaUrls.length > 0 && (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {postForm.mediaUrls.map((url) => (
+                    <div className="relative overflow-hidden rounded-lg border border-slate-200" key={url}>
+                      <img alt="Post attachment" className="h-24 w-full object-cover" src={url} />
+                      <button
+                        className="absolute top-2 right-2 rounded-full bg-black/70 px-2 py-1 text-[11px] font-bold text-white"
+                        onClick={() =>
+                          setPostForm((current) => ({
+                            ...current,
+                            mediaUrls: current.mediaUrls.filter((item) => item !== url),
+                          }))
+                        }
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <input
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
@@ -611,7 +921,7 @@ function Dashboard() {
                     attachmentUrl: event.target.value,
                   }))
                 }
-                placeholder="Attachment URL (optional)"
+                placeholder="External attachment URL (optional)"
                 value={postForm.attachmentUrl}
               />
 

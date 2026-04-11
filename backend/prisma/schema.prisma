@@ -65,6 +65,25 @@ enum PostType {
   GENERAL
 }
 
+enum OpportunityType {
+  JOB
+  INTERNSHIP
+  EVENT
+}
+
+enum OpportunityStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum ApplicationStatus {
+  APPLIED
+  SHORTLISTED
+  REJECTED
+  HIRED
+  WITHDRAWN
+}
+
 enum NotificationType {
   MENTORSHIP_REQUEST
   MENTORSHIP_ACCEPTED
@@ -85,6 +104,7 @@ model College {
   createdAt   DateTime @default(now()) @map("created_at")
 
   users User[]
+  opportunities Opportunity[]
 
   @@index([state, name])
   @@map("colleges")
@@ -93,6 +113,7 @@ model College {
 model User {
   id                    String             @id @default(uuid())
   email                 String             @unique
+  mobileNumber         String?            @unique @map("mobile_number")
   enrollmentNumber      String?            @unique @map("enrollment_number")
   passwordHash          String?            @map("password_hash")
   googleId              String?            @unique @map("google_id")
@@ -126,6 +147,11 @@ model User {
   sentConnectionRequests ConnectionRequest[] @relation("SentConnectionRequests")
   receivedConnectionRequests ConnectionRequest[] @relation("ReceivedConnectionRequests")
   posts                 Post[]
+  postLikes             PostLike[]
+  postComments          PostComment[]
+  postShares            PostShare[]
+  opportunitiesCreated  Opportunity[]      @relation("OpportunityCreator")
+  opportunityApplications OpportunityApplication[]
 
   @@index([collegeId])
   @@map("users")
@@ -402,14 +428,103 @@ model Post {
   title         String
   description   String
   attachmentUrl String?  @map("attachment_url")
+  mediaUrls     String[] @default([]) @map("media_urls")
+  likeCount     Int      @default(0) @map("like_count")
+  commentCount  Int      @default(0) @map("comment_count")
+  shareCount    Int      @default(0) @map("share_count")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  likes PostLike[]
+  comments PostComment[]
+  shares PostShare[]
 
   @@index([createdAt])
   @@index([authorId, createdAt])
   @@map("posts")
+}
+
+model PostLike {
+  postId    String   @map("post_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@map("post_likes")
+}
+
+model PostComment {
+  id        String   @id @default(uuid())
+  postId    String   @map("post_id")
+  userId    String   @map("user_id")
+  content   String   @db.VarChar(2000)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@map("post_comments")
+}
+
+model PostShare {
+  postId    String   @map("post_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@map("post_shares")
+}
+
+model Opportunity {
+  id               String           @id @default(uuid())
+  creatorId        String           @map("creator_id")
+  collegeId        String           @map("college_id")
+  type             OpportunityType  @default(JOB)
+  status           OpportunityStatus @default(ACTIVE)
+  title            String
+  companyName      String           @map("company_name")
+  description      String           @db.VarChar(4000)
+  location         String?
+  compensation     String?          @map("compensation")
+  deadline         DateTime?        @map("deadline")
+  applicationUrl   String?          @map("application_url")
+  targetDomain     String?          @map("target_domain")
+  skillsRequired   String[]         @default([]) @map("skills_required")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  creator   User   @relation("OpportunityCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  college   College @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  applications OpportunityApplication[]
+
+  @@index([collegeId, status, createdAt])
+  @@index([type, status, createdAt])
+  @@map("opportunities")
+}
+
+model OpportunityApplication {
+  id             String           @id @default(uuid())
+  opportunityId  String           @map("opportunity_id")
+  applicantId    String           @map("applicant_id")
+  coverNote      String?          @db.VarChar(4000)
+  status         ApplicationStatus @default(APPLIED)
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  applicant   User        @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+
+  @@unique([opportunityId, applicantId])
+  @@index([applicantId, status])
+  @@map("opportunity_applications")
 }
 
 model RefreshToken {

@@ -15,6 +15,7 @@ const signupInitial = {
   role: 'STUDENT',
   name: '',
   email: '',
+  mobileNumber: '',
   enrollmentNumber: '',
   collegeName: '',
   password: '',
@@ -87,6 +88,7 @@ function AuthCard() {
         role: signupForm.role,
         name: signupForm.name,
         email: signupForm.email,
+        mobileNumber: signupForm.mobileNumber,
         enrollmentNumber:
           signupForm.role === 'ALUMNI' ? signupForm.enrollmentNumber : undefined,
         collegeName: signupForm.collegeName,
@@ -310,7 +312,7 @@ function AuthCard() {
             <input
               className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm"
               onChange={(event) => updateLoginField('identifier', event.target.value)}
-              placeholder="Email or Enrollment Number"
+              placeholder="Email, Enrollment Number, or Mobile"
               value={loginForm.identifier}
             />
             <input
@@ -372,6 +374,12 @@ function AuthCard() {
               }
               type="email"
               value={signupForm.email}
+            />
+            <input
+              className="w-full rounded-lg border border-slate-200 px-4 py-3 text-sm"
+              onChange={(event) => updateSignupField('mobileNumber', event.target.value)}
+              placeholder="Mobile Number"
+              value={signupForm.mobileNumber}
             />
             {signupForm.role === 'ALUMNI' && (
               <input

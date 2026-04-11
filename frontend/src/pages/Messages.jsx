@@ -125,7 +125,7 @@ function Messages() {
               <p className="text-sm text-slate-600">Loading conversations...</p>
             )}
             {conversationsQuery.isError && (
-              <p className="text-sm text-slate-600">Data not available right now</p>
+              <p className="text-sm text-slate-600">Something went wrong</p>
             )}
             {!conversationsQuery.isLoading &&
               !conversationsQuery.isError &&
@@ -161,7 +161,7 @@ function Messages() {
           ) : chatQuery.isLoading ? (
             <p className="text-sm text-slate-600">Loading messages...</p>
           ) : chatQuery.isError ? (
-            <p className="text-sm text-slate-600">Data not available right now</p>
+            <p className="text-sm text-slate-600">Something went wrong</p>
           ) : (
             <div className="flex h-[70vh] flex-col">
               <div className="border-b border-slate-200 pb-3">

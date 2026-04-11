@@ -11,11 +11,34 @@ const normalizeDomain = (value) => {
   return 'both'
 }
 
+const calculateProfileStrength = (user) => {
+  const profile = user.profile || {}
+  let score = 0
+
+  if (profile.firstName) score += 10
+  if (profile.lastName && profile.lastName !== '-') score += 5
+  if (user.mobileNumber) score += 5
+  if (profile.avatarUrl) score += 10
+  if (profile.bio) score += 10
+  if (profile.domain) score += 5
+  if (profile.skillTags?.length) score += 15
+  if (profile.interestTags?.length) score += 10
+  if (profile.internships) score += 10
+  if (profile.projects) score += 10
+  if (profile.linkedinUrl) score += 5
+  if (profile.githubUrl) score += 5
+  if (profile.currentRole) score += 5
+  if (profile.company) score += 5
+
+  return Math.min(score, 100)
+}
+
 export const buildPublicUser = (user) => {
   return {
     id: user.id,
     name: joinName(user.profile?.firstName, user.profile?.lastName),
     email: user.email,
+    mobileNumber: user.mobileNumber || '',
     role: user.role?.toLowerCase() || 'student',
     verified: Boolean(user.verified || user.verificationStatus === 'APPROVED'),
     enrollmentNumber: user.enrollmentNumber || null,
@@ -32,5 +55,6 @@ export const buildPublicUser = (user) => {
     bio: user.profile?.bio || '',
     linkedinUrl: user.profile?.linkedinUrl || '',
     githubUrl: user.profile?.githubUrl || '',
+    profileStrength: calculateProfileStrength(user),
   }
 }

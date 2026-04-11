@@ -135,7 +135,7 @@ function Profile() {
         </div>
       ) : meQuery.isError ? (
         <div className="card border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-sm">
-          Data not available right now
+          Something went wrong
         </div>
       ) : !me ? (
         <div className="card border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-sm">
@@ -158,6 +158,10 @@ function Profile() {
                 <span className="font-semibold">Email:</span> {me.email}
               </p>
               <p>
+                <span className="font-semibold">Mobile:</span>{' '}
+                {me.mobileNumber || 'Not added'}
+              </p>
+              <p>
                 <span className="font-semibold">Domain:</span>{' '}
                 <span className="badge badge-outline">{getDomainLabel(me.domain)}</span>
               </p>
@@ -165,6 +169,17 @@ function Profile() {
                 <span className="font-semibold">Verified:</span>{' '}
                 {me.verified ? 'Yes' : 'No'}
               </p>
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-600">
+                  <span>Profile Strength</span>
+                  <span>{me.profileStrength || 0}%</span>
+                </div>
+                <progress
+                  className="progress progress-primary w-full"
+                  max="100"
+                  value={me.profileStrength || 0}
+                />
+              </div>
               {me.enrollmentNumber && (
                 <p>
                   <span className="font-semibold">Enrollment:</span> {me.enrollmentNumber}

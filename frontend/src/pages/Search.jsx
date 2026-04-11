@@ -93,7 +93,7 @@ function Search() {
           <p className="text-sm text-slate-600">Loading users...</p>
         )}
         {(sameCollegeQuery.isError || otherUsersQuery.isError) && (
-          <p className="text-sm text-slate-600">Data not available right now</p>
+          <p className="text-sm text-slate-600">Something went wrong</p>
         )}
         {!sameCollegeQuery.isLoading &&
           !otherUsersQuery.isLoading &&
