@@ -11,6 +11,9 @@ lerna-debug.log*
 
 # runtime
 .DS_Store
+backend/uploads/
+backend/tmp-*.out
+backend/tmp-*.err
 
 # build output
 dist/

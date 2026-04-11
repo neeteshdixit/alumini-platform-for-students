@@ -29,6 +29,57 @@ const normalizeMediaUrls = ({ attachmentUrl, mediaUrls }) => {
   )
 }
 
+const inferFileTypeFromUrl = (url) => {
+  const normalized = String(url || '').trim().toLowerCase()
+
+  if (normalized.endsWith('.pdf')) {
+    return 'pdf'
+  }
+
+  if (/\.(png|jpe?g|webp|gif|bmp|svg)(\?|#|$)/i.test(normalized)) {
+    return 'image'
+  }
+
+  return 'file'
+}
+
+const normalizePostFiles = (files = []) => {
+  const normalized = []
+
+  for (const file of Array.isArray(files) ? files : []) {
+    const url = String(file?.url || '').trim()
+    if (!url) continue
+
+    const fileType = String(file?.fileType || inferFileTypeFromUrl(url)).trim().toLowerCase() || 'file'
+    const fileName = String(file?.fileName || '').trim() || null
+    const fileSizeValue = Number(file?.fileSize)
+    const fileSize = Number.isFinite(fileSizeValue) && fileSizeValue >= 0 ? Math.floor(fileSizeValue) : null
+    const mimeType = String(file?.mimeType || '').trim() || null
+
+    normalized.push({
+      url,
+      fileType,
+      fileName,
+      fileSize,
+      mimeType,
+    })
+  }
+
+  return Array.from(new Map(normalized.map((file) => [file.url, file])).values())
+}
+
+const formatPostFile = (file) => {
+  return {
+    id: file.id,
+    url: file.url,
+    fileType: file.fileType || inferFileTypeFromUrl(file.url),
+    fileName: file.fileName || null,
+    fileSize: typeof file.fileSize === 'number' ? file.fileSize : null,
+    mimeType: file.mimeType || null,
+    createdAt: file.createdAt,
+  }
+}
+
 const formatComment = (comment) => {
   return {
     id: comment.id,
@@ -39,6 +90,8 @@ const formatComment = (comment) => {
 }
 
 const formatPost = (post) => {
+  const files = (post.files || []).map(formatPostFile)
+
   return {
     id: post.id,
     type: post.type,
@@ -46,6 +99,9 @@ const formatPost = (post) => {
     description: post.description,
     attachmentUrl: post.attachmentUrl,
     mediaUrls: post.mediaUrls || [],
+    fileUrl: post.fileUrl || files[0]?.url || null,
+    fileType: post.fileType || files[0]?.fileType || null,
+    files,
     likeCount: post.likeCount,
     commentCount: post.commentCount,
     shareCount: post.shareCount,
@@ -74,6 +130,11 @@ const loadPostWithContext = async ({ postId, currentUserId }) => {
     include: {
       author: {
         include: includeUserShape,
+      },
+      files: {
+        orderBy: {
+          createdAt: 'asc',
+        },
       },
       likes: currentUserId
         ? {
@@ -106,7 +167,7 @@ const loadPostWithContext = async ({ postId, currentUserId }) => {
 
 export const createPost = asyncHandler(async (req, res) => {
   const currentUserId = req.user?.userId
-  const { type, title, description, attachmentUrl, mediaUrls = [] } = req.body
+  const { type, title, description, attachmentUrl, mediaUrls = [], files = [] } = req.body
 
   if (!currentUserId) {
     throw new AppError('Unauthorized.', 401)
@@ -117,6 +178,8 @@ export const createPost = asyncHandler(async (req, res) => {
     mediaUrls,
   })
 
+  const normalizedFiles = normalizePostFiles(files)
+
   const created = await prisma.post.create({
     data: {
       authorId: currentUserId,
@@ -125,13 +188,27 @@ export const createPost = asyncHandler(async (req, res) => {
       description,
       attachmentUrl: attachmentUrl || null,
       mediaUrls: media,
+      fileUrl: normalizedFiles[0]?.url || null,
+      fileType: normalizedFiles[0]?.fileType || null,
       likeCount: 0,
       commentCount: 0,
       shareCount: 0,
+      ...(normalizedFiles.length
+        ? {
+            files: {
+              create: normalizedFiles,
+            },
+          }
+        : {}),
     },
     include: {
       author: {
         include: includeUserShape,
+      },
+      files: {
+        orderBy: {
+          createdAt: 'asc',
+        },
       },
     },
   })
@@ -166,6 +243,11 @@ export const getPosts = asyncHandler(async (req, res) => {
     include: {
       author: {
         include: includeUserShape,
+      },
+      files: {
+        orderBy: {
+          createdAt: 'asc',
+        },
       },
       likes: {
         where: {

@@ -15,7 +15,9 @@ import {
   sendConnectionRequest,
   togglePostLike,
   uploadMediaFile,
+  uploadPdfFiles,
 } from '../services/platformApi'
+import PostFilePreview from '../components/posts/PostFilePreview'
 import { useAuthStore } from '../store/authStore'
 import { getErrorMessage } from '../utils/error'
 
@@ -25,6 +27,7 @@ const initialPostForm = {
   description: '',
   attachmentUrl: '',
   mediaUrls: [],
+  pdfFiles: [],
 }
 
 const createAsyncState = () => ({
@@ -143,6 +146,7 @@ function Dashboard() {
   const [postForm, setPostForm] = useState(initialPostForm)
   const [isSubmittingPost, setIsSubmittingPost] = useState(false)
   const [isUploadingPostMedia, setIsUploadingPostMedia] = useState(false)
+  const [isUploadingPostPdf, setIsUploadingPostPdf] = useState(false)
   const [connectingUserId, setConnectingUserId] = useState('')
   const [respondingRequestId, setRespondingRequestId] = useState('')
   const [postActionKey, setPostActionKey] = useState('')
@@ -292,6 +296,45 @@ function Dashboard() {
     } finally {
       setIsUploadingPostMedia(false)
     }
+  }
+
+  const uploadPostPdfs = async (files) => {
+    const selectedFiles = Array.from(files || []).filter(Boolean)
+    if (!selectedFiles.length) return
+
+    setIsUploadingPostPdf(true)
+
+    try {
+      const response = await uploadPdfFiles(selectedFiles)
+      const uploaded = Array.isArray(response?.files)
+        ? response.files
+        : response?.file
+          ? [response.file]
+          : []
+
+      setPostForm((current) => ({
+        ...current,
+        pdfFiles: Array.from(
+          new Map(
+            [...(current.pdfFiles || []), ...uploaded].map((item) => [item.url, item]),
+          ).values(),
+        ),
+      }))
+    } catch (error) {
+      setStatus({
+        type: 'error',
+        message: getErrorMessage(error, 'Unable to upload PDF right now.'),
+      })
+    } finally {
+      setIsUploadingPostPdf(false)
+    }
+  }
+
+  const removePdfAttachment = (url) => {
+    setPostForm((current) => ({
+      ...current,
+      pdfFiles: (current.pdfFiles || []).filter((item) => item.url !== url),
+    }))
   }
 
   const handleToggleLike = async (postId) => {
@@ -481,6 +524,7 @@ function Dashboard() {
         description: postForm.description,
         attachmentUrl: postForm.attachmentUrl || undefined,
         mediaUrls: postForm.mediaUrls,
+        files: postForm.pdfFiles,
       })
 
       setStatus({ type: 'success', message: 'Post created successfully.' })
@@ -645,6 +689,14 @@ function Dashboard() {
                               src={url}
                             />
                           </a>
+                        ))}
+                      </div>
+                    )}
+
+                    {post.files?.length > 0 && (
+                      <div className="mb-3 space-y-3">
+                        {post.files.map((file) => (
+                          <PostFilePreview key={file.id || file.url} file={file} />
                         ))}
                       </div>
                     )}
@@ -912,6 +964,34 @@ function Dashboard() {
                   ))}
                 </div>
               )}
+
+              <div className="space-y-2">
+                <input
+                  accept=".pdf,application/pdf"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  disabled={isUploadingPostPdf}
+                  multiple
+                  onChange={(event) => uploadPostPdfs(event.target.files)}
+                  type="file"
+                />
+
+                {isUploadingPostPdf && (
+                  <p className="text-xs font-semibold text-slate-500">Uploading PDFs...</p>
+                )}
+
+                {postForm.pdfFiles.length > 0 && (
+                  <div className="space-y-3">
+                    {postForm.pdfFiles.map((file) => (
+                      <PostFilePreview
+                        compact
+                        file={file}
+                        key={file.url}
+                        onRemove={removePdfAttachment}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <input
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"

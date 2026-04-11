@@ -10,7 +10,8 @@ const bootstrap = async () => {
     await prisma.$connect()
 
     const server = http.createServer(app)
-    createSocketServer(server)
+    const io = createSocketServer(server)
+    app.set('io', io)
 
     server.listen(env.port, () => {
       console.log(`[backend] running on http://localhost:${env.port}`)

@@ -144,6 +144,26 @@ export const applyOpportunity = ({ opportunityId, coverNote }) => {
     .then(getData)
 }
 
+export const startCall = ({ toUserId, mode }) => {
+  return api.post('/api/calls', { toUserId, mode }).then(getData)
+}
+
+export const getCallSession = (callId) => {
+  return api.get(`/api/calls/${callId}`).then(getData)
+}
+
+export const acceptCall = (callId) => {
+  return api.post(`/api/calls/${callId}/accept`, {}).then(getData)
+}
+
+export const rejectCall = (callId) => {
+  return api.post(`/api/calls/${callId}/reject`, {}).then(getData)
+}
+
+export const endCall = (callId) => {
+  return api.post(`/api/calls/${callId}/end`, {}).then(getData)
+}
+
 export const uploadProfileImage = async (file) => {
   const fileData = await fileToDataUrl(file)
   return api
@@ -155,3 +175,14 @@ export const uploadProfileImage = async (file) => {
 }
 
 export const uploadMediaFile = uploadProfileImage
+
+export const uploadPdfFiles = async (files) => {
+  const selectedFiles = Array.from(files || []).filter(Boolean)
+  const formData = new FormData()
+
+  for (const file of selectedFiles) {
+    formData.append('files', file)
+  }
+
+  return api.post('/api/upload/pdf', formData).then(getData)
+}

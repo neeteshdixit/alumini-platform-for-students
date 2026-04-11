@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { useCall } from '../components/calls/CallProvider'
 import AppShell from '../components/layout/AppShell'
 import {
   fetchMessages,
   sendConnectionRequest,
   sendMessage,
 } from '../services/platformApi'
+import { useAuthStore } from '../store/authStore'
 import { getErrorMessage } from '../utils/error'
 
 function Messages() {
@@ -15,6 +17,9 @@ function Messages() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [draft, setDraft] = useState('')
   const [feedback, setFeedback] = useState({ type: '', message: '' })
+  const [isStartingCall, setIsStartingCall] = useState(false)
+  const currentUser = useAuthStore((state) => state.user)
+  const { busy: callBusy, startCall } = useCall()
 
   const selectedUserId = searchParams.get('with') || ''
 
@@ -83,6 +88,11 @@ function Messages() {
 
   const selectedChatData = chatQuery.data
   const access = selectedChatData?.access
+  const canStartCall = Boolean(
+    selectedChatData?.user?.id &&
+      (access?.isConnected ||
+        selectedChatData?.user?.collegeId === currentUser?.collegeId),
+  )
 
   const lockMessage = useMemo(() => {
     if (!access || access.isConnected) return ''
@@ -91,6 +101,28 @@ function Messages() {
     }
     return `Free chat available for ${access.trialRemainingSeconds || 0}s`
   }, [access])
+
+  const handleStartCall = async (mode) => {
+    if (!selectedChatData?.user?.id) {
+      return
+    }
+
+    setIsStartingCall(true)
+    try {
+      setFeedback({ type: '', message: '' })
+      await startCall({
+        toUserId: selectedChatData.user.id,
+        mode,
+      })
+    } catch (error) {
+      setFeedback({
+        type: 'error',
+        message: getErrorMessage(error, 'Failed to start the call.'),
+      })
+    } finally {
+      setIsStartingCall(false)
+    }
+  }
 
   const handleSend = () => {
     const trimmed = draft.trim()
@@ -165,8 +197,43 @@ function Messages() {
           ) : (
             <div className="flex h-[70vh] flex-col">
               <div className="border-b border-slate-200 pb-3">
-                <p className="font-bold text-slate-900">{selectedChatData?.user?.name}</p>
-                <p className="text-xs text-slate-600">{selectedChatData?.user?.collegeName}</p>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-bold text-slate-900">{selectedChatData?.user?.name}</p>
+                    <p className="text-xs text-slate-600">
+                      {selectedChatData?.user?.collegeName}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50"
+                      disabled={!canStartCall || callBusy || isStartingCall}
+                      onClick={() => handleStartCall('VOICE')}
+                      title={
+                        canStartCall
+                          ? 'Start a voice call'
+                          : 'Call is available for connected users or students from the same college.'
+                      }
+                      type="button"
+                    >
+                      Voice Call
+                    </button>
+                    <button
+                      className="rounded-lg bg-blue-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                      disabled={!canStartCall || callBusy || isStartingCall}
+                      onClick={() => handleStartCall('VIDEO')}
+                      title={
+                        canStartCall
+                          ? 'Start a video call'
+                          : 'Call is available for connected users or students from the same college.'
+                      }
+                      type="button"
+                    >
+                      Video Call
+                    </button>
+                  </div>
+                </div>
                 {lockMessage && (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span
