@@ -34,6 +34,13 @@ const calculateProfileStrength = (user) => {
 }
 
 export const buildPublicUser = (user) => {
+  const graduationYear = user.profile?.graduationYear || null
+  const graduationMonth = user.profile?.graduationMonth || null
+  const graduationDate =
+    graduationYear && graduationMonth
+      ? new Date(Number(graduationYear), Number(graduationMonth) - 1, 1)
+      : null
+
   return {
     id: user.id,
     name: joinName(user.profile?.firstName, user.profile?.lastName),
@@ -41,9 +48,13 @@ export const buildPublicUser = (user) => {
     mobileNumber: user.mobileNumber || '',
     role: user.role?.toLowerCase() || 'student',
     verified: Boolean(user.verified || user.verificationStatus === 'APPROVED'),
+    isFirstLogin: Boolean(user.isFirstLogin),
+    lastLoginAt: user.lastLoginAt || null,
     enrollmentNumber: user.enrollmentNumber || null,
     collegeId: user.collegeId,
     collegeName: user.college?.name || null,
+    collegeState: user.college?.state || null,
+    collegeDistrict: user.college?.district || null,
     domain: normalizeDomain(user.profile?.domain),
     skills: user.profile?.skillTags || [],
     interests: user.profile?.interestTags || [],
@@ -56,5 +67,9 @@ export const buildPublicUser = (user) => {
     linkedinUrl: user.profile?.linkedinUrl || '',
     githubUrl: user.profile?.githubUrl || '',
     profileStrength: calculateProfileStrength(user),
+    graduationYear,
+    graduationMonth,
+    graduationDate: graduationDate ? graduationDate.toISOString() : null,
+    authProvider: user.authProvider || 'LOCAL',
   }
 }

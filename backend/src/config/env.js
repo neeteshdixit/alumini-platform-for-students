@@ -24,6 +24,10 @@ export const env = {
   isProduction: process.env.NODE_ENV === 'production',
   port: parseNumber(process.env.PORT, 5000),
   clientOrigin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+  appOrigin: (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)[0] || 'http://localhost:5173',
   databaseUrl: process.env.DATABASE_URL,
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET,
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET,

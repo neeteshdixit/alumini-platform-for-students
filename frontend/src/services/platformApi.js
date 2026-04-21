@@ -15,6 +15,10 @@ export const signup = (payload) => {
   return api.post('/api/signup', payload).then(getData)
 }
 
+export const googleAuth = (payload) => {
+  return api.post('/api/google', payload).then(getData)
+}
+
 export const verifyOtp = (payload) => {
   return api.post('/api/verify-otp', payload).then(getData)
 }
@@ -27,12 +31,40 @@ export const login = (payload) => {
   return api.post('/api/login', payload).then(getData)
 }
 
+export const forgotPassword = (payload) => {
+  return api.post('/api/forgot-password', payload).then(getData)
+}
+
+export const resetPassword = (payload) => {
+  return api.post('/api/reset-password', payload).then(getData)
+}
+
 export const logout = () => {
   return api.post('/api/logout', {}).then(getData)
 }
 
 export const getMe = () => {
   return api.get('/api/user/me').then(getData)
+}
+
+export const getLocationStates = () => {
+  return api.get('/api/locations/states').then(getData)
+}
+
+export const getLocationDistricts = (stateId) => {
+  return api
+    .get('/api/locations/districts', {
+      params: { stateId },
+    })
+    .then(getData)
+}
+
+export const getLocationColleges = (districtId) => {
+  return api
+    .get('/api/locations/colleges', {
+      params: { districtId },
+    })
+    .then(getData)
 }
 
 export const getUserSuggestions = async () => {
@@ -84,6 +116,22 @@ export const getOtherUsers = () => {
 
 export const getConnections = () => {
   return api.get('/api/connections').then(getData)
+}
+
+export const getNotifications = () => {
+  return api.get('/api/notifications').then(getData)
+}
+
+export const readNotification = (notificationId) => {
+  return api.post(`/api/notifications/${notificationId}/read`, {}).then(getData)
+}
+
+export const readAllNotifications = () => {
+  return api.post('/api/notifications/read-all', {}).then(getData)
+}
+
+export const getLeaderboard = () => {
+  return api.get('/api/leaderboard').then(getData)
 }
 
 export const sendConnectionRequest = (targetUserId) => {

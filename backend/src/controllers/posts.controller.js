@@ -3,6 +3,7 @@ import { AppError } from '../utils/app-error.js'
 import { sendSuccess } from '../utils/api-response.js'
 import { asyncHandler } from '../utils/async-handler.js'
 import { buildPublicUser } from '../services/user-presenter.service.js'
+import { broadcastToAllOnlineUsers } from '../services/notification.service.js'
 
 const includeUserShape = {
   college: true,
@@ -213,17 +214,32 @@ export const createPost = asyncHandler(async (req, res) => {
     },
   })
 
+  const formattedPost = formatPost({
+    ...created,
+    likes: [],
+    comments: [],
+  })
+
+  const io = req.app.get('io')
+  broadcastToAllOnlineUsers(io, 'feed:new', {
+    post: formattedPost,
+  })
+
+  if (created.type === 'CERTIFICATE') {
+    broadcastToAllOnlineUsers(io, 'broadcast:achievement', {
+      type: 'CERTIFICATE',
+      userId: currentUserId,
+      name: formattedPost.author?.name || 'Someone',
+      message: `${formattedPost.author?.name || 'Someone'} has just earned a new certificate!`,
+      post: formattedPost,
+    })
+  }
+
   return sendSuccess(
     res,
     {
       message: 'Post published successfully.',
-      post: {
-        ...formatPost({
-          ...created,
-          likes: [],
-          comments: [],
-        }),
-      },
+      post: formattedPost,
     },
     201,
   )

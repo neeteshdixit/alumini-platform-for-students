@@ -10,6 +10,7 @@ import { AppError } from '../utils/app-error.js'
 import { sendSuccess } from '../utils/api-response.js'
 import { asyncHandler } from '../utils/async-handler.js'
 import { buildPublicUser } from '../services/user-presenter.service.js'
+import { getGraduationMetadata } from '../services/engagement.service.js'
 
 const includeUserShape = {
   college: true,
@@ -244,6 +245,8 @@ export const updateMe = asyncHandler(async (req, res) => {
     internships,
     projects,
     bio,
+    graduationYear,
+    graduationMonth,
     linkedinUrl,
     githubUrl,
     profileImage,
@@ -287,6 +290,14 @@ export const updateMe = asyncHandler(async (req, res) => {
     profileUpdate.bio = normalizeOptionalText(bio)
   }
 
+  if ('graduationYear' in req.body) {
+    profileUpdate.graduationYear = graduationYear ? Number(graduationYear) : null
+  }
+
+  if ('graduationMonth' in req.body) {
+    profileUpdate.graduationMonth = graduationMonth ? Number(graduationMonth) : null
+  }
+
   if ('linkedinUrl' in req.body) {
     profileUpdate.linkedinUrl = normalizeOptionalText(linkedinUrl)
   }
@@ -301,6 +312,21 @@ export const updateMe = asyncHandler(async (req, res) => {
 
   if (!Object.keys(profileUpdate).length && !Object.keys(userUpdate).length) {
     throw new AppError('No profile fields were provided.', 400)
+  }
+
+  if (
+    ('graduationYear' in req.body || 'graduationMonth' in req.body) &&
+    profileUpdate.graduationYear &&
+    profileUpdate.graduationMonth
+  ) {
+    const graduationMetadata = getGraduationMetadata({
+      graduationYear: profileUpdate.graduationYear,
+      graduationMonth: profileUpdate.graduationMonth,
+    })
+
+    if (graduationMetadata.date && graduationMetadata.date <= new Date()) {
+      userUpdate.role = 'ALUMNI'
+    }
   }
 
   try {

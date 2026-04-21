@@ -1,6 +1,8 @@
 import { Router } from 'express'
 
 import {
+  forgotPassword,
+  googleAuth,
   login,
   logout,
   logoutAllDevices,
@@ -8,16 +10,20 @@ import {
   refreshToken,
   resendOtp,
   signup,
+  resetPassword,
   verifyOtp,
 } from '../controllers/auth.controller.js'
 import { requireAuth } from '../middlewares/auth.middleware.js'
 import { authRateLimiter } from '../middlewares/rate-limit.middleware.js'
 import { validate } from '../middlewares/validate.middleware.js'
 import {
+  forgotPasswordSchema,
+  googleAuthSchema,
   loginSchema,
   refreshSchema,
   resendOtpSchema,
   signupSchema,
+  resetPasswordSchema,
   verifyOtpSchema,
 } from '../validations/auth.validation.js'
 
@@ -41,8 +47,17 @@ router.post('/auth/resend-otp', ...resendOtpStack)
 router.post('/login', ...loginStack)
 router.post('/auth/login', ...loginStack)
 
+router.post('/google', authRateLimiter, validate(googleAuthSchema), googleAuth)
+router.post('/auth/google', authRateLimiter, validate(googleAuthSchema), googleAuth)
+
 router.post('/refresh-token', ...refreshStack)
 router.post('/auth/refresh-token', ...refreshStack)
+
+router.post('/forgot-password', authRateLimiter, validate(forgotPasswordSchema), forgotPassword)
+router.post('/auth/forgot-password', authRateLimiter, validate(forgotPasswordSchema), forgotPassword)
+
+router.post('/reset-password', authRateLimiter, validate(resetPasswordSchema), resetPassword)
+router.post('/auth/reset-password', authRateLimiter, validate(resetPasswordSchema), resetPassword)
 
 router.post('/logout', logout)
 router.post('/auth/logout', logout)

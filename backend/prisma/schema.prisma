@@ -13,6 +13,12 @@ enum Role {
   ADMIN
 }
 
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+  FIREBASE
+}
+
 enum VerificationStatus {
   PENDING
   APPROVED
@@ -105,22 +111,66 @@ enum NotificationType {
   NEW_MESSAGE
   VERIFICATION_APPROVED
   VERIFICATION_REJECTED
+  CONNECTION_REQUEST
+  CONNECTION_ACCEPTED
+  CONNECTION_REJECTED
+  FEED_BROADCAST
+  CERTIFICATE
+  ACHIEVEMENT
+  WELCOME
+  PASSWORD_RESET
+  GRADUATION_COMPLETE
+  REMINDER
   SYSTEM
+}
+
+model LocationState {
+  id        String            @id @default(uuid())
+  name      String            @unique
+  code      String?           @unique
+  createdAt DateTime          @default(now()) @map("created_at")
+
+  districts LocationDistrict[]
+  colleges  College[]
+
+  @@index([name])
+  @@map("location_states")
+}
+
+model LocationDistrict {
+  id        String   @id @default(uuid())
+  stateId   String   @map("state_id")
+  name      String
+  code      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  state    LocationState @relation(fields: [stateId], references: [id], onDelete: Cascade)
+  colleges College[]
+
+  @@unique([stateId, name])
+  @@index([stateId, name])
+  @@map("location_districts")
 }
 
 model College {
   id          String   @id @default(uuid())
   name        String
+  stateId     String?  @map("state_id")
+  districtId  String?  @map("district_id")
   emailDomain String?  @unique @map("email_domain")
   logoUrl     String?  @map("logo_url")
   city        String?
   state       String?
+  district    String?
   createdAt   DateTime @default(now()) @map("created_at")
 
+  stateLocation    LocationState?    @relation(fields: [stateId], references: [id], onDelete: SetNull)
+  districtLocation LocationDistrict?  @relation(fields: [districtId], references: [id], onDelete: SetNull)
   users User[]
   opportunities Opportunity[]
 
-  @@index([state, name])
+  @@index([state, district, name])
+  @@index([stateId, districtId, name])
   @@map("colleges")
 }
 
@@ -131,6 +181,7 @@ model User {
   enrollmentNumber      String?            @unique @map("enrollment_number")
   passwordHash          String?            @map("password_hash")
   googleId              String?            @unique @map("google_id")
+  authProvider          AuthProvider       @default(LOCAL) @map("auth_provider")
   collegeId             String             @map("college_id")
   role                  Role               @default(STUDENT)
   verified              Boolean            @default(false)
@@ -141,12 +192,17 @@ model User {
   failedLoginAttempts   Int                @default(0) @map("failed_login_attempts")
   lockedUntil           DateTime?          @map("locked_until")
   isBanned              Boolean            @default(false) @map("is_banned")
+  isFirstLogin          Boolean            @default(true) @map("is_first_login")
+  lastLoginAt           DateTime?          @map("last_login_at")
+  graduationMailSentAt  DateTime?          @map("graduation_mail_sent_at")
+  graduationReminderSentAt DateTime?       @map("graduation_reminder_sent_at")
   createdAt             DateTime           @default(now()) @map("created_at")
   updatedAt             DateTime           @updatedAt @map("updated_at")
 
   college               College            @relation(fields: [collegeId], references: [id])
   profile               Profile?
   refreshTokens         RefreshToken[]
+  passwordResetTokens   PasswordResetToken[]
   sentMessages          Message[]          @relation("SentMessages")
   chatParticipants      ChatParticipant[]
   mentorshipsAsMentor   Mentorship[]       @relation("MentorRelation")
@@ -165,11 +221,13 @@ model User {
   postComments          PostComment[]
   postShares            PostShare[]
   opportunitiesCreated  Opportunity[]      @relation("OpportunityCreator")
-    opportunityApplications OpportunityApplication[]
-    initiatedCalls        CallSession[]      @relation("CallSessionCaller")
-    receivedCalls         CallSession[]      @relation("CallSessionCallee")
+  opportunityApplications OpportunityApplication[]
+  initiatedCalls        CallSession[]      @relation("CallSessionCaller")
+  receivedCalls         CallSession[]      @relation("CallSessionCallee")
   
     @@index([collegeId])
+    @@index([role, isFirstLogin])
+    @@index([lastLoginAt])
     @@map("users")
   }
 
@@ -185,6 +243,7 @@ model Profile {
   projects          String?    @db.VarChar(4000)
   batchYear         Int        @map("batch_year")
   graduationYear    Int?       @map("graduation_year")
+  graduationMonth   Int?       @map("graduation_month")
   department        String
   currentRole       String?    @map("current_role")
   company           String?
@@ -419,13 +478,29 @@ model Notification {
   title     String
   body      String
   read      Boolean          @default(false)
+  readAt    DateTime?        @map("read_at")
   meta      Json?
   createdAt DateTime         @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId, read])
+  @@index([userId, read, createdAt])
   @@map("notifications")
+}
+
+model PasswordResetToken {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  tokenHash  String   @unique @map("token_hash")
+  expiresAt  DateTime @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  sentVia    String?  @map("sent_via")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("password_reset_tokens")
 }
 
 model EmailOtp {

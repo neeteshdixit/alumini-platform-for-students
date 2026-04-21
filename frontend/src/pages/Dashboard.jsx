@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { toast } from 'react-hot-toast'
 
 import AppShell from '../components/layout/AppShell'
+import ActionButton from '../components/ui/ActionButton'
+import Skeleton from '../components/ui/Skeleton'
 import {
   addPostComment,
   createPost,
@@ -9,6 +13,7 @@ import {
   getConnections,
   getMe,
   getPosts,
+  getLeaderboard,
   getUserSuggestions,
   sharePost,
   respondConnectionRequest,
@@ -20,6 +25,7 @@ import {
 import PostFilePreview from '../components/posts/PostFilePreview'
 import { useAuthStore } from '../store/authStore'
 import { getErrorMessage } from '../utils/error'
+import { playPopSound } from '../utils/audio'
 
 const initialPostForm = {
   type: 'GENERAL',
@@ -36,15 +42,6 @@ const createAsyncState = () => ({
   data: null,
 })
 
-const speakWelcome = (name) => {
-  if (!window?.speechSynthesis || !name) return
-  const utterance = new SpeechSynthesisUtterance(`Welcome ${name}`)
-  utterance.rate = 1
-  utterance.pitch = 1
-  window.speechSynthesis.cancel()
-  window.speechSynthesis.speak(utterance)
-}
-
 function StatusNotice({ message, tone = 'neutral' }) {
   const className =
     tone === 'error'
@@ -58,7 +55,15 @@ function StatusNotice({ message, tone = 'neutral' }) {
 
 function LoadingOrFallback({ loading, error, empty, loadingText, emptyText }) {
   if (loading) {
-    return <StatusNotice message={loadingText || 'Loading...'} />
+    return (
+      <div className="space-y-3">
+        <StatusNotice message={loadingText || 'Loading...'} />
+        <div className="space-y-3">
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-20 w-full" />
+        </div>
+      </div>
+    )
   }
   if (error) {
     return <StatusNotice message="Something went wrong" tone="error" />
@@ -74,7 +79,10 @@ function SuggestionCard({ user, onConnect, isConnecting }) {
     user.connectionStatus === 'NONE' || user.connectionStatus === 'REJECTED'
 
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <motion.article
+      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      whileHover={{ y: -4 }}
+    >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <h3 className="font-bold text-slate-900">{user.name}</h3>
@@ -101,14 +109,14 @@ function SuggestionCard({ user, onConnect, isConnecting }) {
 
       <div className="flex flex-wrap gap-2">
         {canConnect && (
-          <button
-            className="rounded-lg bg-blue-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
+          <ActionButton
+            className="bg-blue-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
             disabled={isConnecting}
             onClick={() => onConnect(user.id)}
             type="button"
           >
             {isConnecting ? 'Connecting...' : 'Connect'}
-          </button>
+          </ActionButton>
         )}
 
         {user.connectionStatus === 'CONNECTED' && (
@@ -126,7 +134,7 @@ function SuggestionCard({ user, onConnect, isConnecting }) {
           </span>
         )}
       </div>
-    </article>
+    </motion.article>
   )
 }
 
@@ -140,6 +148,7 @@ function Dashboard() {
   const [postsState, setPostsState] = useState(createAsyncState)
   const [chatsState, setChatsState] = useState(createAsyncState)
   const [connectionsState, setConnectionsState] = useState(createAsyncState)
+  const [leaderboardState, setLeaderboardState] = useState(createAsyncState)
 
   const [status, setStatus] = useState({ type: '', message: '' })
   const [isPostModalOpen, setIsPostModalOpen] = useState(false)
@@ -269,6 +278,32 @@ function Dashboard() {
     }
   }
 
+  const loadLeaderboard = async () => {
+    safeSetState(setLeaderboardState, {
+      loading: true,
+      error: '',
+      data: { topMentors: [], mostActiveAlumni: [] },
+    })
+
+    try {
+      const response = await getLeaderboard()
+      safeSetState(setLeaderboardState, {
+        loading: false,
+        error: '',
+        data: {
+          topMentors: response?.topMentors || [],
+          mostActiveAlumni: response?.mostActiveAlumni || [],
+        },
+      })
+    } catch (error) {
+      safeSetState(setLeaderboardState, {
+        loading: false,
+        error: getErrorMessage(error),
+        data: { topMentors: [], mostActiveAlumni: [] },
+      })
+    }
+  }
+
   const uploadPostMedia = async (files) => {
     const selectedFiles = Array.from(files || []).filter(Boolean)
     if (!selectedFiles.length) return
@@ -288,11 +323,17 @@ function Dashboard() {
         ...current,
         mediaUrls: Array.from(new Set([...(current.mediaUrls || []), ...uploaded])),
       }))
+      if (uploaded.length) {
+        playPopSound()
+        toast.success('Media uploaded successfully.')
+      }
     } catch (error) {
+      const message = getErrorMessage(error, 'Unable to upload post media.')
       setStatus({
         type: 'error',
-        message: getErrorMessage(error, 'Unable to upload post media.'),
+        message,
       })
+      toast.error(message)
     } finally {
       setIsUploadingPostMedia(false)
     }
@@ -320,11 +361,17 @@ function Dashboard() {
           ).values(),
         ),
       }))
+      if (uploaded.length) {
+        playPopSound()
+        toast.success('PDF files uploaded successfully.')
+      }
     } catch (error) {
+      const message = getErrorMessage(error, 'Unable to upload PDF right now.')
       setStatus({
         type: 'error',
-        message: getErrorMessage(error, 'Unable to upload PDF right now.'),
+        message,
       })
+      toast.error(message)
     } finally {
       setIsUploadingPostPdf(false)
     }
@@ -345,13 +392,16 @@ function Dashboard() {
       const response = await togglePostLike(postId)
       if (response?.message) {
         setStatus({ type: 'success', message: response.message })
+        toast.success(response.message)
       }
       await loadPosts()
     } catch (error) {
+      const message = getErrorMessage(error, 'Failed to update like.')
       setStatus({
         type: 'error',
-        message: getErrorMessage(error, 'Failed to update like.'),
+        message,
       })
+      toast.error(message)
     } finally {
       setPostActionKey('')
     }
@@ -387,6 +437,7 @@ function Dashboard() {
         type: 'success',
         message: response?.message || 'Post shared successfully.',
       })
+      toast.success(response?.message || 'Post shared successfully.')
       await loadPosts()
     } catch (error) {
       if (error?.name === 'AbortError') {
@@ -394,10 +445,12 @@ function Dashboard() {
         return
       }
 
+      const message = getErrorMessage(error, 'Failed to share post.')
       setStatus({
         type: 'error',
-        message: getErrorMessage(error, 'Failed to share post.'),
+        message,
       })
+      toast.error(message)
     } finally {
       setPostActionKey('')
     }
@@ -414,6 +467,7 @@ function Dashboard() {
       const response = await addPostComment({ postId, content })
       if (response?.message) {
         setStatus({ type: 'success', message: response.message })
+        toast.success(response.message)
       }
       setCommentDrafts((current) => ({
         ...current,
@@ -422,10 +476,12 @@ function Dashboard() {
       setExpandedCommentPostId(postId)
       await loadPosts()
     } catch (error) {
+      const message = getErrorMessage(error, 'Failed to add comment.')
       setStatus({
         type: 'error',
-        message: getErrorMessage(error, 'Failed to add comment.'),
+        message,
       })
+      toast.error(message)
     } finally {
       setPostActionKey('')
     }
@@ -447,6 +503,7 @@ function Dashboard() {
       loadPosts(),
       loadChats(),
       loadConnections(),
+      loadLeaderboard(),
     ])
   }
 
@@ -456,11 +513,39 @@ function Dashboard() {
   }, [accessToken])
 
   useEffect(() => {
+    const refreshFeed = () => {
+      loadPosts()
+    }
+
+    const refreshNetwork = () => {
+      loadSuggestions()
+      loadConnections()
+      loadChats()
+      loadLeaderboard()
+    }
+
+    const refreshMessages = () => {
+      loadChats()
+    }
+
+    window.addEventListener('alumni:feed:new', refreshFeed)
+    window.addEventListener('alumni:broadcast:new', refreshFeed)
+    window.addEventListener('alumni:notification:new', refreshNetwork)
+    window.addEventListener('alumni:message:new', refreshMessages)
+
+    return () => {
+      window.removeEventListener('alumni:feed:new', refreshFeed)
+      window.removeEventListener('alumni:broadcast:new', refreshFeed)
+      window.removeEventListener('alumni:notification:new', refreshNetwork)
+      window.removeEventListener('alumni:message:new', refreshMessages)
+    }
+  }, [])
+
+  useEffect(() => {
     const me = userState.data
     if (!me || welcomedUserRef.current === me.id) return
 
     welcomedUserRef.current = me.id
-    speakWelcome(me.name)
   }, [userState.data])
 
   const incomingRequests = connectionsState.data?.incoming || []
@@ -481,11 +566,15 @@ function Dashboard() {
     setStatus({ type: '', message: '' })
 
     try {
-      await sendConnectionRequest(targetUserId)
-      setStatus({ type: 'success', message: 'Connection request sent.' })
+      const response = await sendConnectionRequest(targetUserId)
+      const message = response?.message || 'Connection request sent.'
+      setStatus({ type: 'success', message })
+      toast.success(message)
       await Promise.all([loadSuggestions(), loadConnections(), loadChats()])
     } catch (error) {
-      setStatus({ type: 'error', message: getErrorMessage(error) })
+      const message = getErrorMessage(error)
+      setStatus({ type: 'error', message })
+      toast.error(message)
     } finally {
       setConnectingUserId('')
     }
@@ -496,17 +585,26 @@ function Dashboard() {
     setStatus({ type: '', message: '' })
 
     try {
-      await respondConnectionRequest({ requestId, action })
+      const response = await respondConnectionRequest({ requestId, action })
       setStatus({
         type: 'success',
         message:
-          action === 'ACCEPT'
+          response?.message ||
+          (action === 'ACCEPT'
             ? 'Connection request accepted.'
-            : 'Connection request rejected.',
+            : 'Connection request rejected.'),
       })
+      toast.success(
+        response?.message ||
+          (action === 'ACCEPT'
+            ? 'Connection request accepted.'
+            : 'Connection request rejected.'),
+      )
       await Promise.all([loadSuggestions(), loadConnections(), loadChats()])
     } catch (error) {
-      setStatus({ type: 'error', message: getErrorMessage(error) })
+      const message = getErrorMessage(error)
+      setStatus({ type: 'error', message })
+      toast.error(message)
     } finally {
       setRespondingRequestId('')
     }
@@ -518,7 +616,7 @@ function Dashboard() {
     setIsSubmittingPost(true)
 
     try {
-      await createPost({
+      const response = await createPost({
         type: postForm.type,
         title: postForm.title,
         description: postForm.description,
@@ -527,12 +625,17 @@ function Dashboard() {
         files: postForm.pdfFiles,
       })
 
-      setStatus({ type: 'success', message: 'Post created successfully.' })
+      playPopSound()
+      const message = response?.message || 'Post created successfully.'
+      setStatus({ type: 'success', message })
+      toast.success(message)
       setPostForm(initialPostForm)
       setIsPostModalOpen(false)
       await loadPosts()
     } catch (error) {
-      setStatus({ type: 'error', message: getErrorMessage(error) })
+      const message = getErrorMessage(error)
+      setStatus({ type: 'error', message })
+      toast.error(message)
     } finally {
       setIsSubmittingPost(false)
     }
@@ -540,27 +643,27 @@ function Dashboard() {
 
   const dashboardActions = (
     <div className="flex flex-wrap gap-2">
-      <button
-        className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+      <ActionButton
+        className="border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
         onClick={() => navigate('/search')}
         type="button"
       >
         View Matches
-      </button>
-      <button
-        className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+      </ActionButton>
+      <ActionButton
+        className="border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
         onClick={() => navigate('/opportunities')}
         type="button"
       >
         Opportunities
-      </button>
-      <button
-        className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-bold text-white"
+      </ActionButton>
+      <ActionButton
+        className="bg-blue-900 px-4 py-2 text-sm font-bold text-white"
         onClick={() => setIsPostModalOpen(true)}
         type="button"
       >
         New Post
-      </button>
+      </ActionButton>
     </div>
   )
 
@@ -880,6 +983,76 @@ function Dashboard() {
                     </div>
                   </div>
                 ))}
+            </article>
+
+            <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className="text-lg font-black text-blue-950">Leaderboards</h2>
+                <span className="text-xs font-semibold text-slate-500">Live ranking</span>
+              </div>
+
+              {leaderboardState.loading ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
+                </div>
+              ) : leaderboardState.error ? (
+                <StatusNotice message="Something went wrong" tone="error" />
+              ) : (
+                <div className="space-y-5">
+                  <div>
+                    <p className="mb-2 text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+                      Top Mentors
+                    </p>
+                    <div className="space-y-2">
+                      {(leaderboardState.data?.topMentors || []).slice(0, 3).map((mentor, index) => (
+                        <div
+                          className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                          key={mentor.id}
+                        >
+                          <div>
+                            <p className="text-sm font-bold text-slate-900">
+                              {index + 1}. {mentor.name}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {mentor.collegeName || 'College'} • {mentor.activityScore} pts
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-blue-100 px-2 py-1 text-[11px] font-bold text-blue-800">
+                            Mentor
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="mb-2 text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+                      Most Active Alumni
+                    </p>
+                    <div className="space-y-2">
+                      {(leaderboardState.data?.mostActiveAlumni || []).slice(0, 3).map((alumni, index) => (
+                        <div
+                          className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                          key={alumni.id}
+                        >
+                          <div>
+                            <p className="text-sm font-bold text-slate-900">
+                              {index + 1}. {alumni.name}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {alumni.collegeName || 'College'} • {alumni.activityScore} pts
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-800">
+                            Alumni
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </article>
           </aside>
         </div>

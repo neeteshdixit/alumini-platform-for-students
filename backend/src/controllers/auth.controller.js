@@ -18,6 +18,11 @@ import {
 } from '../services/token.service.js'
 import { buildPublicUser } from '../services/user-presenter.service.js'
 import { issueOtpForUser, verifyUserOtp } from '../services/otp.service.js'
+import { ensureCollegeForSignup } from '../services/location.service.js'
+import {
+  consumePasswordResetToken,
+  requestPasswordReset,
+} from '../services/password-reset.service.js'
 
 const normalizeEmail = (value) => value.trim().toLowerCase()
 
@@ -80,77 +85,37 @@ const issueAuthSession = async ({ user, req, res }) => {
   return accessToken
 }
 
-const findCollegeByName = async (collegeName) => {
-  return prisma.college.findFirst({
-    where: {
-      name: {
-        equals: collegeName.trim(),
-        mode: 'insensitive',
-      },
-    },
-  })
-}
+const buildGraduationDate = ({ graduationYear, graduationMonth }) => {
+  const year = Number(graduationYear)
+  const month = Number(graduationMonth)
 
-const findCollegeByEmailDomain = async (emailDomain) => {
-  if (!emailDomain) {
+  if (!Number.isFinite(year) || !Number.isFinite(month)) {
     return null
   }
 
-  return prisma.college.findUnique({
-    where: {
-      emailDomain: emailDomain.trim().toLowerCase(),
-    },
-  })
+  if (month < 1 || month > 12) {
+    return null
+  }
+
+  return new Date(year, month, 0, 23, 59, 59, 999)
 }
 
-const ensureCollege = async ({ collegeId, collegeName, email }) => {
-  if (collegeId) {
-    const byId = await prisma.college.findUnique({
-      where: {
-        id: collegeId,
-      },
-    })
+const ensureCollege = async ({
+  collegeId,
+  collegeName,
+  stateId,
+  districtId,
+  email,
+}) => {
+  const emailDomain = email.includes('@') ? email.split('@')[1] : null
 
-    if (!byId) {
-      throw new AppError('Invalid collegeId.', 400)
-    }
-
-    return byId
-  }
-
-  if (collegeName) {
-    const existing = await findCollegeByName(collegeName)
-    if (existing) {
-      return existing
-    }
-
-    const emailDomain = email.includes('@') ? email.split('@')[1] : null
-    const existingByDomain = await findCollegeByEmailDomain(emailDomain)
-    if (existingByDomain) {
-      return existingByDomain
-    }
-
-    try {
-      return await prisma.college.create({
-        data: {
-          name: collegeName.trim(),
-          emailDomain,
-        },
-      })
-    } catch (error) {
-      // Handle parallel signups trying to create the same emailDomain.
-      if (error?.code === 'P2002' && emailDomain) {
-        const raceWinnerCollege = await findCollegeByEmailDomain(emailDomain)
-        if (raceWinnerCollege) {
-          return raceWinnerCollege
-        }
-      }
-
-      throw error
-    }
-  }
-
-  throw new AppError('collegeId or collegeName is required.', 400)
+  return ensureCollegeForSignup({
+    collegeId,
+    collegeName,
+    stateId,
+    districtId,
+    emailDomain,
+  })
 }
 
 const findUserForLogin = async ({ email, enrollmentNumber, mobileNumber, identifier }) => {
@@ -252,6 +217,10 @@ export const signup = asyncHandler(async (req, res) => {
     password,
     collegeId,
     collegeName,
+    stateId,
+    districtId,
+    graduationMonth,
+    graduationYear,
     enrollmentNumber,
   } = req.body
 
@@ -297,14 +266,25 @@ export const signup = asyncHandler(async (req, res) => {
   const college = await ensureCollege({
     collegeId,
     collegeName,
+    stateId,
+    districtId,
     email: normalizedEmail,
   })
+
+  const graduationDate = buildGraduationDate({
+    graduationMonth,
+    graduationYear,
+  })
+  const effectiveRole =
+    role === 'STUDENT' && graduationDate && graduationDate <= new Date()
+      ? 'ALUMNI'
+      : role
 
   const emailDomain = normalizedEmail.includes('@')
     ? normalizedEmail.split('@')[1]
     : ''
   if (
-    role === 'STUDENT' &&
+    effectiveRole === 'STUDENT' &&
     college.emailDomain &&
     emailDomain &&
     college.emailDomain.toLowerCase() !== emailDomain.toLowerCase()
@@ -320,18 +300,24 @@ export const signup = asyncHandler(async (req, res) => {
     data: {
       email: normalizedEmail,
       mobileNumber: normalizedMobile || null,
-      enrollmentNumber: role === 'ALUMNI' ? enrollmentNumber : null,
+      enrollmentNumber: effectiveRole === 'ALUMNI' ? enrollmentNumber : null,
       passwordHash,
       collegeId: college.id,
-      role,
+      role: effectiveRole,
+      authProvider: 'LOCAL',
       verified: false,
       verificationStatus: 'PENDING',
+      isFirstLogin: true,
+      lastLoginAt: null,
+      graduationMailSentAt: null,
+      graduationReminderSentAt: null,
       profile: {
         create: {
           firstName,
           lastName,
           batchYear: currentYear,
-          graduationYear: role === 'STUDENT' ? currentYear + 4 : currentYear,
+          graduationYear: Number(graduationYear),
+          graduationMonth: Number(graduationMonth),
           department: 'General',
           skillTags: [],
           interestTags: [],
@@ -354,6 +340,7 @@ export const signup = asyncHandler(async (req, res) => {
       : 'Signup successful. OTP is ready on your verification screen.',
     requiresOtp: true,
     user: buildPublicUser(createdUser),
+    shouldPlayWelcome: createdUser.isFirstLogin,
     ...(env.isProduction || !otpIssue.debugOtp
       ? {}
       : {
@@ -440,6 +427,151 @@ export const resendOtp = asyncHandler(async (req, res) => {
   })
 })
 
+export const googleAuth = asyncHandler(async (req, res) => {
+  const {
+    googleId,
+    email,
+    name,
+    collegeId,
+    collegeName,
+    stateId,
+    districtId,
+    graduationMonth,
+    graduationYear,
+  } = req.body
+
+  const normalizedEmail = normalizeEmail(email)
+  const existingUser = await prisma.user.findFirst({
+    where: {
+      OR: [{ googleId }, { email: normalizedEmail }],
+    },
+    include: includeUserShape,
+  })
+
+  const college = await ensureCollege({
+    collegeId: collegeId || existingUser?.collegeId || null,
+    collegeName,
+    stateId,
+    districtId,
+    email: normalizedEmail,
+  })
+
+  const { firstName, lastName } = splitName(name)
+  const now = new Date()
+  const graduationDate = buildGraduationDate({
+    graduationYear,
+    graduationMonth,
+  })
+  const effectiveRole =
+    graduationDate && graduationDate <= now ? 'ALUMNI' : 'STUDENT'
+  const shouldPlayWelcome = Boolean(existingUser?.isFirstLogin ?? true)
+
+  const baseUserData = {
+    email: normalizedEmail,
+    googleId,
+    authProvider: 'GOOGLE',
+    collegeId: college.id,
+    verified: true,
+    verificationStatus: 'APPROVED',
+    isFirstLogin: false,
+    lastLoginAt: now,
+  }
+
+  const profileData = {
+    firstName,
+    lastName,
+  }
+
+  if (graduationYear) {
+    profileData.graduationYear = Number(graduationYear)
+  }
+
+  if (graduationMonth) {
+    profileData.graduationMonth = Number(graduationMonth)
+  }
+
+  const user = existingUser
+    ? await prisma.user.update({
+        where: {
+          id: existingUser.id,
+        },
+        data: {
+          ...baseUserData,
+          profile: existingUser.profile
+            ? {
+                update: profileData,
+              }
+            : {
+                create: {
+                  ...profileData,
+                  batchYear: now.getFullYear(),
+                  graduationYear: profileData.graduationYear || now.getFullYear(),
+                  graduationMonth: profileData.graduationMonth || now.getMonth() + 1,
+                  department: 'General',
+                  skillTags: [],
+                  interestTags: [],
+                  maxMentees: 3,
+                },
+              },
+        },
+        include: includeUserShape,
+      })
+    : await prisma.user.create({
+        data: {
+          ...baseUserData,
+          role: effectiveRole,
+          profile: {
+            create: {
+              ...profileData,
+              batchYear: now.getFullYear(),
+              graduationYear: profileData.graduationYear || now.getFullYear(),
+              graduationMonth: profileData.graduationMonth || now.getMonth() + 1,
+              department: 'General',
+              skillTags: [],
+              interestTags: [],
+              maxMentees: 3,
+            },
+          },
+        },
+        include: includeUserShape,
+      })
+
+  const accessToken = await issueAuthSession({
+    user,
+    req,
+    res,
+  })
+
+  return sendSuccess(res, {
+    message: 'Google account authenticated successfully.',
+    accessToken,
+    user: {
+      ...buildPublicUser(user),
+      isFirstLogin: false,
+    },
+    shouldPlayWelcome,
+  })
+})
+
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body
+  const response = await requestPasswordReset({ email })
+
+  return sendSuccess(res, response)
+})
+
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { token, email, newPassword } = req.body
+
+  const result = await consumePasswordResetToken({
+    token,
+    email,
+    newPassword,
+  })
+
+  return sendSuccess(res, result)
+})
+
 export const login = asyncHandler(async (req, res) => {
   const { email, enrollmentNumber, mobileNumber, identifier, password } = req.body
 
@@ -506,6 +638,8 @@ export const login = asyncHandler(async (req, res) => {
     throw new AppError('Invalid credentials.', 401)
   }
 
+  const shouldPlayWelcome = normalizedUser.isFirstLogin
+
   await prisma.user.update({
     where: {
       id: normalizedUser.id,
@@ -513,6 +647,8 @@ export const login = asyncHandler(async (req, res) => {
     data: {
       failedLoginAttempts: 0,
       lockedUntil: null,
+      lastLoginAt: now,
+      isFirstLogin: false,
     },
   })
 
@@ -525,7 +661,11 @@ export const login = asyncHandler(async (req, res) => {
   return sendSuccess(res, {
     message: 'Login successful.',
     accessToken,
-    user: buildPublicUser(normalizedUser),
+    user: {
+      ...buildPublicUser(normalizedUser),
+      isFirstLogin: false,
+    },
+    shouldPlayWelcome,
   })
 })
 

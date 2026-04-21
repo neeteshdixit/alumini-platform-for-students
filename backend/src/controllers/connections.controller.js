@@ -3,6 +3,7 @@ import { AppError } from '../utils/app-error.js'
 import { sendSuccess } from '../utils/api-response.js'
 import { asyncHandler } from '../utils/async-handler.js'
 import { buildPublicUser } from '../services/user-presenter.service.js'
+import { createNotification } from '../services/notification.service.js'
 
 const includeUserShape = {
   college: true,
@@ -73,6 +74,8 @@ export const sendConnectionRequest = asyncHandler(async (req, res) => {
     })
   }
 
+  const io = req.app.get('io')
+
   if (
     existingRelationship?.status === 'PENDING' &&
     existingRelationship.requesterId === targetUserId
@@ -92,6 +95,19 @@ export const sendConnectionRequest = asyncHandler(async (req, res) => {
         receiver: {
           include: includeUserShape,
         },
+      },
+    })
+
+    const io = req.app.get('io')
+    await createNotification({
+      io,
+      userId: targetUserId,
+      type: 'CONNECTION_ACCEPTED',
+      title: 'Connection accepted',
+      body: 'Your connection request was accepted.',
+      meta: {
+        requestId: accepted.id,
+        status: 'ACCEPTED',
       },
     })
 
@@ -148,6 +164,18 @@ export const sendConnectionRequest = asyncHandler(async (req, res) => {
       },
     })
   }
+
+  await createNotification({
+    io,
+    userId: targetUserId,
+    type: 'CONNECTION_REQUEST',
+    title: 'New connection request',
+    body: 'Someone sent you a new connection request.',
+    meta: {
+      requestId: request.id,
+      requesterId: currentUserId,
+    },
+  })
 
   return sendSuccess(
     res,
@@ -210,6 +238,28 @@ export const acceptOrRejectConnection = asyncHandler(async (req, res) => {
       receiver: {
         include: includeUserShape,
       },
+    },
+  })
+
+  const io = req.app.get('io')
+  await createNotification({
+    io,
+    userId: request.requesterId,
+    type:
+      nextStatus === 'ACCEPTED'
+        ? 'CONNECTION_ACCEPTED'
+        : 'CONNECTION_REJECTED',
+    title:
+      nextStatus === 'ACCEPTED'
+        ? 'Connection accepted'
+        : 'Connection rejected',
+    body:
+      nextStatus === 'ACCEPTED'
+        ? 'Your connection request was accepted.'
+        : 'Your connection request was rejected.',
+    meta: {
+      requestId,
+      status: nextStatus,
     },
   })
 

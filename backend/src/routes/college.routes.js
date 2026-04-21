@@ -4,6 +4,7 @@ import { prisma } from '../config/prisma.js'
 import { AppError } from '../utils/app-error.js'
 import { asyncHandler } from '../utils/async-handler.js'
 import { sendSuccess } from '../utils/api-response.js'
+import { ensureCollegeForSignup } from '../services/location.service.js'
 
 const router = Router()
 
@@ -32,11 +33,57 @@ const sanitizeCollegeName = (name = '') => {
   return name.trim().replace(/\s+/g, ' ')
 }
 
+const normalizeId = (value = '') => String(value || '').trim()
+
 router.get(
   '/',
   asyncHandler(async (req, res) => {
     const rawState = String(req.query.state || '')
     const state = normalizeStateInput(rawState)
+    const stateId = normalizeId(req.query.stateId)
+    const districtId = normalizeId(req.query.districtId)
+
+    if (districtId) {
+      const colleges = await prisma.college.findMany({
+        where: {
+          districtId,
+        },
+        select: {
+          id: true,
+          name: true,
+          state: true,
+          district: true,
+          stateId: true,
+          districtId: true,
+        },
+        orderBy: {
+          name: 'asc',
+        },
+      })
+
+      return sendSuccess(res, { colleges })
+    }
+
+    if (stateId) {
+      const colleges = await prisma.college.findMany({
+        where: {
+          stateId,
+        },
+        select: {
+          id: true,
+          name: true,
+          state: true,
+          district: true,
+          stateId: true,
+          districtId: true,
+        },
+        orderBy: {
+          name: 'asc',
+        },
+      })
+
+      return sendSuccess(res, { colleges })
+    }
 
     if (!state) {
       const allColleges = await prisma.college.findMany({
@@ -44,6 +91,9 @@ router.get(
           id: true,
           name: true,
           state: true,
+          district: true,
+          stateId: true,
+          districtId: true,
         },
         orderBy: [{ state: 'asc' }, { name: 'asc' }],
       })
@@ -62,6 +112,9 @@ router.get(
         id: true,
         name: true,
         state: true,
+        district: true,
+        stateId: true,
+        districtId: true,
       },
       orderBy: {
         name: 'asc',
@@ -77,48 +130,39 @@ router.post(
   asyncHandler(async (req, res) => {
     const name = sanitizeCollegeName(String(req.body?.name || ''))
     const state = normalizeStateInput(String(req.body?.state || ''))
+    const stateName = sanitizeCollegeName(String(req.body?.stateName || req.body?.state || ''))
+    const districtName = sanitizeCollegeName(
+      String(req.body?.districtName || req.body?.district || ''),
+    )
+    const stateId = normalizeId(req.body?.stateId)
+    const districtId = normalizeId(req.body?.districtId)
+    const emailDomain = String(req.body?.emailDomain || '').trim().toLowerCase() || null
 
-    if (!name || !state) {
-      throw new AppError('College name and state are required.', 400)
+    if (!name) {
+      throw new AppError('College name is required.', 400)
     }
 
-    const duplicate = await prisma.college.findFirst({
-      where: {
-        name: {
-          equals: name,
-          mode: 'insensitive',
-        },
-        state: {
-          equals: state,
-          mode: 'insensitive',
-        },
-      },
-      select: {
-        id: true,
-      },
-    })
-
-    if (duplicate) {
-      throw new AppError('College already exists for this state.', 409)
-    }
-
-    const createdCollege = await prisma.college.create({
-      data: {
-        name,
-        state,
-      },
-      select: {
-        id: true,
-        name: true,
-        state: true,
-      },
+    const createdCollege = await ensureCollegeForSignup({
+      collegeName: name,
+      stateId: stateId || null,
+      stateName: state || stateName || null,
+      districtId: districtId || null,
+      districtName: districtName || null,
+      emailDomain,
     })
 
     return sendSuccess(
       res,
       {
         message: 'College added successfully.',
-        college: createdCollege,
+        college: {
+          id: createdCollege.id,
+          name: createdCollege.name,
+          state: createdCollege.state || null,
+          district: createdCollege.district || null,
+          stateId: createdCollege.stateId || null,
+          districtId: createdCollege.districtId || null,
+        },
       },
       201,
     )

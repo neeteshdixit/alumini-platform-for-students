@@ -13,6 +13,7 @@ import {
   decryptMessageContent,
   encryptMessageContent,
 } from '../services/message-crypto.service.js'
+import { createNotification } from '../services/notification.service.js'
 
 const includeUserShape = {
   college: true,
@@ -108,10 +109,32 @@ export const sendMessage = asyncHandler(async (req, res) => {
     isConnected: connected,
   })
 
+  const io = req.app.get('io')
+  const formattedMessage = formatMessage(message)
+
+  if (io) {
+    io.to(`chat:${chat.id}`).emit('message:new', {
+      message: formattedMessage,
+      chatId: chat.id,
+    })
+  }
+
+  await createNotification({
+    io,
+    userId: toUserId,
+    type: 'NEW_MESSAGE',
+    title: 'New message received',
+    body: 'You have a new message in AlumniConnect.',
+    meta: {
+      chatId: chat.id,
+      fromId: currentUserId,
+    },
+  })
+
   return sendSuccess(
     res,
     {
-      message: formatMessage(message),
+      message: formattedMessage,
       access: {
         ...refreshedAccess,
         isConnected: connected,

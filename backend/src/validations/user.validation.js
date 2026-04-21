@@ -23,6 +23,9 @@ const profileUrlSchema = z
     },
   )
 
+const yearSchema = z.coerce.number().int().min(1900).max(2100).optional()
+const monthSchema = z.coerce.number().int().min(1).max(12).optional()
+
 export const updateMeSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
   mobileNumber: mobileNumberSchema.optional(),
@@ -32,6 +35,8 @@ export const updateMeSchema = z.object({
   internships: z.string().trim().max(3000).optional(),
   projects: z.string().trim().max(4000).optional(),
   bio: z.string().trim().max(2000).optional(),
+  graduationYear: yearSchema,
+  graduationMonth: monthSchema,
   linkedinUrl: profileUrlSchema.optional(),
   githubUrl: profileUrlSchema.optional(),
   profileImage: profileUrlSchema.optional(),
