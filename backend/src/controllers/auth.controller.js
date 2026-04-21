@@ -497,6 +497,7 @@ export const googleAuth = asyncHandler(async (req, res) => {
         },
         data: {
           ...baseUserData,
+          role: effectiveRole,
           profile: existingUser.profile
             ? {
                 update: profileData,

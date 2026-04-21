@@ -1,4 +1,6 @@
-﻿import { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+
+import PdfDocumentViewer from '../ui/PdfDocumentViewer'
 
 const inferFileTypeFromUrl = (url) => {
   const normalized = String(url || '').trim().toLowerCase()
@@ -140,11 +142,12 @@ function PostFilePreview({ compact = false, file, onRemove }) {
 
         <div className={`${previewHeightClass} bg-slate-100`}>
           {isPdf ? (
-            <iframe
-              className="h-full w-full border-0"
-              loading="lazy"
-              src={normalized.url}
-              title={normalized.fileName}
+            <PdfDocumentViewer
+              className="h-full rounded-none border-0 bg-transparent shadow-none"
+              contentClassName="h-full bg-transparent"
+              fileName={normalized.fileName}
+              fileUrl={normalized.url}
+              showHeader={false}
             />
           ) : isImage ? (
             <img
@@ -183,11 +186,12 @@ function PostFilePreview({ compact = false, file, onRemove }) {
             </div>
             <div className="h-[80vh] bg-slate-100">
               {isPdf ? (
-                <iframe
-                  className="h-full w-full border-0"
-                  loading="lazy"
-                  src={normalized.url}
-                  title={`${normalized.fileName} full screen`}
+                <PdfDocumentViewer
+                  className="h-full rounded-none border-0 bg-transparent shadow-none"
+                  contentClassName="h-full bg-transparent"
+                  fileName={normalized.fileName}
+                  fileUrl={normalized.url}
+                  showHeader={false}
                 />
               ) : isImage ? (
                 <img
@@ -209,5 +213,3 @@ function PostFilePreview({ compact = false, file, onRemove }) {
 }
 
 export default PostFilePreview
-
-

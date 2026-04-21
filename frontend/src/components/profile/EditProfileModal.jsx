@@ -29,6 +29,32 @@ const domainOptions = [
   { label: 'Both', value: 'both' },
 ]
 
+const monthOptions = [
+  { label: 'January', value: 1 },
+  { label: 'February', value: 2 },
+  { label: 'March', value: 3 },
+  { label: 'April', value: 4 },
+  { label: 'May', value: 5 },
+  { label: 'June', value: 6 },
+  { label: 'July', value: 7 },
+  { label: 'August', value: 8 },
+  { label: 'September', value: 9 },
+  { label: 'October', value: 10 },
+  { label: 'November', value: 11 },
+  { label: 'December', value: 12 },
+]
+
+const buildYearOptions = () => {
+  const currentYear = new Date().getFullYear()
+  const years = []
+
+  for (let year = currentYear - 6; year <= currentYear + 8; year += 1) {
+    years.push(year)
+  }
+
+  return years
+}
+
 function EditProfileModal({
   initialData,
   isSaving,
@@ -47,11 +73,14 @@ function EditProfileModal({
     internships: initialData?.internships || '',
     projects: initialData?.projects || '',
     bio: initialData?.bio || '',
+    graduationMonth: initialData?.graduationMonth || '',
+    graduationYear: initialData?.graduationYear || '',
     linkedinUrl: initialData?.linkedinUrl || '',
     githubUrl: initialData?.githubUrl || '',
     profileImage: initialData?.profileImage || initialData?.avatarUrl || '',
   })
   const [localError, setLocalError] = useState('')
+  const yearOptions = useMemo(() => buildYearOptions(), [])
 
   const skillsPreview = useMemo(() => toArray(form.skills), [form.skills])
   const interestsPreview = useMemo(() => toArray(form.interests), [form.interests])
@@ -84,6 +113,8 @@ function EditProfileModal({
               internships: form.internships.trim(),
               projects: form.projects.trim(),
               bio: form.bio.trim(),
+              graduationMonth: form.graduationMonth ? Number(form.graduationMonth) : null,
+              graduationYear: form.graduationYear ? Number(form.graduationYear) : null,
               linkedinUrl: form.linkedinUrl.trim(),
               githubUrl: form.githubUrl.trim(),
               profileImage: form.profileImage.trim(),
@@ -150,6 +181,52 @@ function EditProfileModal({
                 {domainOptions.map((item) => (
                   <option key={item.value} value={item.value}>
                     {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="form-control">
+              <span className="mb-1 text-sm font-semibold text-slate-700">
+                Graduation Month
+              </span>
+              <select
+                className="select select-bordered w-full"
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    graduationMonth: event.target.value,
+                  }))
+                }
+                value={form.graduationMonth}
+              >
+                <option value="">Select month</option>
+                {monthOptions.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="form-control">
+              <span className="mb-1 text-sm font-semibold text-slate-700">
+                Graduation Year
+              </span>
+              <select
+                className="select select-bordered w-full"
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    graduationYear: event.target.value,
+                  }))
+                }
+                value={form.graduationYear}
+              >
+                <option value="">Select year</option>
+                {yearOptions.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
                   </option>
                 ))}
               </select>

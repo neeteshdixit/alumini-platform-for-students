@@ -1,14 +1,17 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useCall } from '../components/calls/CallProvider'
 import AppShell from '../components/layout/AppShell'
+import ActionButton from '../components/ui/ActionButton'
+import TypingIndicator from '../components/ui/TypingIndicator'
 import {
   fetchMessages,
   sendConnectionRequest,
   sendMessage,
 } from '../services/platformApi'
+import { useSocket } from '../contexts/SocketContext'
 import { useAuthStore } from '../store/authStore'
 import { getErrorMessage } from '../utils/error'
 
@@ -18,8 +21,13 @@ function Messages() {
   const [draft, setDraft] = useState('')
   const [feedback, setFeedback] = useState({ type: '', message: '' })
   const [isStartingCall, setIsStartingCall] = useState(false)
+  const [isPeerTyping, setIsPeerTyping] = useState(false)
   const currentUser = useAuthStore((state) => state.user)
+  const socket = useSocket()
   const { busy: callBusy, startCall } = useCall()
+  const peerTypingTimeoutRef = useRef(null)
+  const localTypingTimeoutRef = useRef(null)
+  const isLocallyTypingRef = useRef(false)
 
   const selectedUserId = searchParams.get('with') || ''
 
@@ -36,6 +44,9 @@ function Messages() {
     refetchInterval: 4000,
   })
 
+  const selectedChatData = chatQuery.data
+  const activeChatId = selectedChatData?.chatId || ''
+
   useEffect(() => {
     if (selectedUserId) return
     const firstConversation = conversationsQuery.data?.conversations?.[0]
@@ -43,11 +54,84 @@ function Messages() {
     setSearchParams({ with: firstConversation.user.id })
   }, [conversationsQuery.data, selectedUserId, setSearchParams])
 
+  const stopLocalTyping = () => {
+    if (localTypingTimeoutRef.current) {
+      window.clearTimeout(localTypingTimeoutRef.current)
+      localTypingTimeoutRef.current = null
+    }
+
+    if (socket && activeChatId && isLocallyTypingRef.current) {
+      socket.emit('stopTyping', { chatId: activeChatId })
+    }
+
+    isLocallyTypingRef.current = false
+  }
+
+  useEffect(() => {
+    if (!socket || !activeChatId) {
+      setIsPeerTyping(false)
+      return undefined
+    }
+
+    socket.emit('joinChat', { chatId: activeChatId })
+    const clearPeerTypingTimeout = () => {
+      if (peerTypingTimeoutRef.current) {
+        window.clearTimeout(peerTypingTimeoutRef.current)
+        peerTypingTimeoutRef.current = null
+      }
+    }
+
+    const clearLocalTypingState = () => {
+      if (localTypingTimeoutRef.current) {
+        window.clearTimeout(localTypingTimeoutRef.current)
+        localTypingTimeoutRef.current = null
+      }
+
+      if (socket && activeChatId && isLocallyTypingRef.current) {
+        socket.emit('stopTyping', { chatId: activeChatId })
+      }
+
+      isLocallyTypingRef.current = false
+    }
+
+    const handleTyping = (payload) => {
+      if (payload?.chatId !== activeChatId) return
+
+      setIsPeerTyping(true)
+      clearPeerTypingTimeout()
+      peerTypingTimeoutRef.current = window.setTimeout(() => {
+        setIsPeerTyping(false)
+      }, 1800)
+    }
+
+    const handleStopTyping = (payload) => {
+      if (payload?.chatId !== activeChatId) return
+
+      setIsPeerTyping(false)
+      if (peerTypingTimeoutRef.current) {
+        window.clearTimeout(peerTypingTimeoutRef.current)
+        peerTypingTimeoutRef.current = null
+      }
+    }
+
+    socket.on('typing', handleTyping)
+    socket.on('stopTyping', handleStopTyping)
+
+    return () => {
+      socket.off('typing', handleTyping)
+      socket.off('stopTyping', handleStopTyping)
+      clearPeerTypingTimeout()
+      clearLocalTypingState()
+      setIsPeerTyping(false)
+    }
+  }, [activeChatId, socket])
+
   const sendMessageMutation = useMutation({
     mutationFn: sendMessage,
     onSuccess: async () => {
       setDraft('')
       setFeedback({ type: '', message: '' })
+      stopLocalTyping()
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['messages', selectedUserId] }),
         queryClient.invalidateQueries({ queryKey: ['messages', 'list'] }),
@@ -86,7 +170,29 @@ function Messages() {
     },
   })
 
-  const selectedChatData = chatQuery.data
+  const handleDraftChange = (value) => {
+    setDraft(value)
+
+    if (!socket || !activeChatId) {
+      return
+    }
+
+    if (!isLocallyTypingRef.current) {
+      socket.emit('typing', { chatId: activeChatId })
+      isLocallyTypingRef.current = true
+    }
+
+    if (localTypingTimeoutRef.current) {
+      window.clearTimeout(localTypingTimeoutRef.current)
+    }
+
+    localTypingTimeoutRef.current = window.setTimeout(() => {
+      socket.emit('stopTyping', { chatId: activeChatId })
+      isLocallyTypingRef.current = false
+      localTypingTimeoutRef.current = null
+    }, 1200)
+  }
+
   const access = selectedChatData?.access
   const canStartCall = Boolean(
     selectedChatData?.user?.id &&
@@ -127,6 +233,7 @@ function Messages() {
   const handleSend = () => {
     const trimmed = draft.trim()
     if (!trimmed || !selectedUserId) return
+    stopLocalTyping()
     sendMessageMutation.mutate({
       toUserId: selectedUserId,
       content: trimmed,
@@ -206,7 +313,7 @@ function Messages() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    <button
+                    <ActionButton
                       className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50"
                       disabled={!canStartCall || callBusy || isStartingCall}
                       onClick={() => handleStartCall('VOICE')}
@@ -215,11 +322,10 @@ function Messages() {
                           ? 'Start a voice call'
                           : 'Call is available for connected users or students from the same college.'
                       }
-                      type="button"
-                    >
+                      type="button">
                       Voice Call
-                    </button>
-                    <button
+                    </ActionButton>
+                    <ActionButton
                       className="rounded-lg bg-blue-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
                       disabled={!canStartCall || callBusy || isStartingCall}
                       onClick={() => handleStartCall('VIDEO')}
@@ -228,10 +334,9 @@ function Messages() {
                           ? 'Start a video call'
                           : 'Call is available for connected users or students from the same college.'
                       }
-                      type="button"
-                    >
+                      type="button">
                       Video Call
-                    </button>
+                    </ActionButton>
                   </div>
                 </div>
                 {lockMessage && (
@@ -246,13 +351,13 @@ function Messages() {
                       {lockMessage}
                     </span>
                     {access?.locked && !access?.isConnected && (
-                      <button
+                      <ActionButton
                         className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700"
                         onClick={() => connectMutation.mutate(selectedUserId)}
                         type="button"
                       >
                         Connect
-                      </button>
+                      </ActionButton>
                     )}
                   </div>
                 )}
@@ -290,12 +395,20 @@ function Messages() {
                 )}
               </div>
 
+              {isPeerTyping && (
+                <div className="pb-2">
+                  <TypingIndicator
+                    label={`${selectedChatData?.user?.name || 'User'} is typing`}
+                  />
+                </div>
+              )}
+
               <div className="border-t border-slate-200 pt-3">
                 <div className="flex gap-2">
                   <input
                     className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
                     disabled={Boolean(access?.locked)}
-                    onChange={(event) => setDraft(event.target.value)}
+                    onChange={(event) => handleDraftChange(event.target.value)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
                         event.preventDefault()
@@ -309,14 +422,14 @@ function Messages() {
                     }
                     value={draft}
                   />
-                  <button
+                  <ActionButton
                     className="rounded-lg bg-blue-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
                     disabled={sendMessageMutation.isPending || Boolean(access?.locked)}
                     onClick={handleSend}
                     type="button"
                   >
                     Send
-                  </button>
+                  </ActionButton>
                 </div>
               </div>
             </div>

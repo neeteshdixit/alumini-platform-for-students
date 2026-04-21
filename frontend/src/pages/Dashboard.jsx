@@ -27,6 +27,8 @@ import { useAuthStore } from '../store/authStore'
 import { getErrorMessage } from '../utils/error'
 import { playPopSound } from '../utils/audio'
 
+const MotionArticle = motion.article
+
 const initialPostForm = {
   type: 'GENERAL',
   title: '',
@@ -79,7 +81,7 @@ function SuggestionCard({ user, onConnect, isConnecting }) {
     user.connectionStatus === 'NONE' || user.connectionStatus === 'REJECTED'
 
   return (
-    <motion.article
+    <MotionArticle
       className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
       whileHover={{ y: -4 }}
     >
@@ -134,7 +136,7 @@ function SuggestionCard({ user, onConnect, isConnecting }) {
           </span>
         )}
       </div>
-    </motion.article>
+    </MotionArticle>
   )
 }
 
@@ -539,6 +541,7 @@ function Dashboard() {
       window.removeEventListener('alumni:notification:new', refreshNetwork)
       window.removeEventListener('alumni:message:new', refreshMessages)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {

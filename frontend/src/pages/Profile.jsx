@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'react-hot-toast'
 
 import EditProfileModal from '../components/profile/EditProfileModal'
 import AppShell from '../components/layout/AppShell'
+import ActionButton from '../components/ui/ActionButton'
+import ConfettiBurst from '../components/ui/ConfettiBurst'
 import {
   deleteMe,
   getMe,
@@ -21,6 +24,28 @@ const domainLabelMap = {
 
 const getDomainLabel = (domain) => {
   return domainLabelMap[domain] || 'Both'
+}
+
+const monthNames = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+
+const formatGraduationLabel = (month, year) => {
+  if (!month && !year) return 'Not added'
+  const monthLabel = month ? monthNames[Number(month) - 1] || 'Unknown month' : 'Unknown month'
+  const yearLabel = year || 'Unknown year'
+  return `${monthLabel} ${yearLabel}`
 }
 
 const Avatar = ({ name, image }) => {
@@ -52,6 +77,7 @@ function Profile() {
 
   const [feedback, setFeedback] = useState({ type: '', message: '' })
   const [isEditOpen, setIsEditOpen] = useState(false)
+  const [showDegreeConfetti, setShowDegreeConfetti] = useState(false)
   const [deleteForm, setDeleteForm] = useState({
     confirmText: '',
     password: '',
@@ -61,10 +87,35 @@ function Profile() {
     queryKey: ['me'],
     queryFn: getMe,
   })
+  const currentMe = meQuery.data?.user
+
+  useEffect(() => {
+    if (!showDegreeConfetti) {
+      return undefined
+    }
+
+    const timeout = window.setTimeout(() => setShowDegreeConfetti(false), 3500)
+    return () => window.clearTimeout(timeout)
+  }, [showDegreeConfetti])
 
   const updateMutation = useMutation({
     mutationFn: updateMe,
-    onSuccess: async (data) => {
+    onMutate: (payload) => {
+      const degreeFieldsProvided =
+        Object.prototype.hasOwnProperty.call(payload || {}, 'graduationYear') ||
+        Object.prototype.hasOwnProperty.call(payload || {}, 'graduationMonth')
+      const degreeChanged =
+        degreeFieldsProvided &&
+        (String(payload?.graduationYear ?? currentMe?.graduationYear ?? '') !==
+          String(currentMe?.graduationYear ?? '') ||
+          String(payload?.graduationMonth ?? currentMe?.graduationMonth ?? '') !==
+            String(currentMe?.graduationMonth ?? ''))
+
+      return {
+        degreeChanged,
+      }
+    },
+    onSuccess: async (data, _variables, context) => {
       if (data.user) {
         setUser(data.user)
       }
@@ -72,7 +123,11 @@ function Profile() {
         type: 'success',
         message: data.message || 'Profile updated successfully',
       })
+      toast.success(data.message || 'Profile updated successfully')
       setIsEditOpen(false)
+      if (context?.degreeChanged || (data.user?.role === 'alumni' && currentMe?.role !== 'alumni')) {
+        setShowDegreeConfetti(true)
+      }
       await queryClient.invalidateQueries({ queryKey: ['me'] })
       await queryClient.invalidateQueries({ queryKey: ['users'] })
       await queryClient.invalidateQueries({ queryKey: ['suggestions'] })
@@ -82,6 +137,7 @@ function Profile() {
         type: 'error',
         message: getErrorMessage(error, 'Failed to update profile.'),
       })
+      toast.error(getErrorMessage(error, 'Failed to update profile.'))
     },
   })
 
@@ -92,6 +148,7 @@ function Profile() {
   const deleteMutation = useMutation({
     mutationFn: deleteMe,
     onSuccess: async () => {
+      toast.success('Account deleted successfully.')
       clearSession()
       queryClient.clear()
       navigate('/login', { replace: true })
@@ -101,6 +158,7 @@ function Profile() {
         type: 'error',
         message: getErrorMessage(error, 'Failed to delete account.'),
       })
+      toast.error(getErrorMessage(error, 'Failed to delete account.'))
     },
   })
 
@@ -110,13 +168,18 @@ function Profile() {
   const interests = useMemo(() => me?.interests || [], [me?.interests])
 
   const headerActions = (
-    <button className="btn btn-primary" onClick={() => setIsEditOpen(true)} type="button">
+    <ActionButton
+      className="bg-blue-900 text-white"
+      onClick={() => setIsEditOpen(true)}
+      type="button"
+    >
       Edit Profile
-    </button>
+    </ActionButton>
   )
 
   return (
     <AppShell actions={headerActions} title="My Profile">
+      <ConfettiBurst active={showDegreeConfetti} />
       {feedback.message && (
         <div
           className={`mb-4 rounded-lg px-4 py-3 text-sm font-semibold ${
@@ -164,6 +227,10 @@ function Profile() {
               <p>
                 <span className="font-semibold">Domain:</span>{' '}
                 <span className="badge badge-outline">{getDomainLabel(me.domain)}</span>
+              </p>
+              <p>
+                <span className="font-semibold">Graduation:</span>{' '}
+                {formatGraduationLabel(me.graduationMonth, me.graduationYear)}
               </p>
               <p>
                 <span className="font-semibold">Verified:</span>{' '}
