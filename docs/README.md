@@ -82,6 +82,7 @@ docs/
 ├── 19-college-submission/                      # Academic Major Project documentation, IEEE-compliant specs & synopsis
 │   ├── 01-major-project-report.md
 │   ├── 02-minor-project-synopsis-cs508.md
+│   ├── 03-complete-system-workflow-diagrams.md # Master System & Feature Workflow Diagrams
 │   └── Minor_Project_I_CS508_Synopsis.docx     # Official CS-508 Word Document Synopsis
 └── 20-traceability-and-appendices/             # Master traceability matrix (REQ -> MOD -> SCR -> API -> DB -> TEST)
     ├── 01-master-traceability-matrix.md
@@ -137,6 +138,7 @@ The table below catalogs every formal engineering and product specification docu
 | **DOC-MAN-002** | Platform Administrator Operating Manual | [18-user-and-admin-manuals/02-platform-administrator-manual.md](file:///d:/Projects/alumini-platform-for-students-1/docs/18-user-and-admin-manuals/02-platform-administrator-manual.md) | Technical Documentation Specialist | **APPROVED BASELINE** | MAN-ADM-001..007 |
 | **DOC-ACAD-001** | IEEE Major Project Report & Synopsis | [19-college-submission/01-major-project-report.md](file:///d:/Projects/alumini-platform-for-students-1/docs/19-college-submission/01-major-project-report.md) | Technical Documentation Specialist | **APPROVED BASELINE** | ACAD-REP-001..010 |
 | **DOC-ACAD-002** | Minor Project-I (CS-508) Official Synopsis | [19-college-submission/02-minor-project-synopsis-cs508.md](file:///d:/Projects/alumini-platform-for-students-1/docs/19-college-submission/02-minor-project-synopsis-cs508.md) ([Word .docx](file:///d:/Projects/alumini-platform-for-students-1/docs/19-college-submission/Minor_Project_I_CS508_Synopsis.docx)) | Technical Documentation Specialist | **APPROVED BASELINE** | ACAD-SYN-001..006 |
+| **DOC-ACAD-003** | End-to-End System & Feature Workflows | [19-college-submission/03-complete-system-workflow-diagrams.md](file:///d:/Projects/alumini-platform-for-students-1/docs/19-college-submission/03-complete-system-workflow-diagrams.md) | Principal Software Architect | **APPROVED BASELINE** | ACAD-WF-001..010 |
 | **DOC-TRC-001** | Master Requirement Traceability Matrix | [20-traceability-and-appendices/01-master-traceability-matrix.md](file:///d:/Projects/alumini-platform-for-students-1/docs/20-traceability-and-appendices/01-master-traceability-matrix.md) | Senior Business Analyst | **APPROVED BASELINE** | REQ-ALL |
 | **DOC-TRC-002** | Consistency Audit & Sign-Off Quality Gate | [20-traceability-and-appendices/02-consistency-audit-and-signoff-gate.md](file:///d:/Projects/alumini-platform-for-students-1/docs/20-traceability-and-appendices/02-consistency-audit-and-signoff-gate.md) | Principal Software Architect | **APPROVED BASELINE** | GATE-SIGN-001 |
 

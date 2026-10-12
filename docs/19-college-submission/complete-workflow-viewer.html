@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AlumniConnect - Complete System Architecture & Feature Workflow Diagram</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+    }
+    .title-group h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #38bdf8;
+      letter-spacing: -0.01em;
+    }
+    .title-group p {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+    .controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .btn {
+      background: #334155;
+      color: #f8fafc;
+      border: 1px solid #475569;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+    .btn:hover {
+      background: #475569;
+      border-color: #64748b;
+    }
+    .btn-primary {
+      background: #0284c7;
+      border-color: #0369a1;
+    }
+    .btn-primary:hover {
+      background: #0369a1;
+    }
+    #diagram-container {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      position: relative;
+      background: #0b1120;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #mermaid-wrapper {
+      width: 100%;
+      height: 100%;
+    }
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #0f172a;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 20;
+      font-size: 1.1rem;
+      color: #38bdf8;
+      gap: 12px;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #334155;
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .legend {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      background: rgba(30, 41, 59, 0.95);
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      backdrop-filter: blur(8px);
+      z-index: 10;
+    }
+    .legend-title {
+      font-weight: 600;
+      color: #94a3b8;
+      margin-bottom: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .legend-color {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="title-group">
+      <h1>AlumniConnect - Complete System Architecture & All-Feature Workflow</h1>
+      <p>Minor Project-I (CS-508) & Major Project Master Diagram • Visual Presentation View</p>
+    </div>
+    <div class="controls">
+      <button class="btn" id="zoom-in" title="Zoom In">🔍 Zoom +</button>
+      <button class="btn" id="zoom-out" title="Zoom Out">🔍 Zoom -</button>
+      <button class="btn" id="reset-zoom" title="Reset View">↺ Reset View</button>
+      <a class="btn btn-primary" id="download-png" href="AlumniConnect_Complete_System_Workflow.png" download="AlumniConnect_Complete_System_Workflow.png" title="Download High-Resolution PNG Image">⬇ Download PNG</a>
+      <button class="btn" id="download-svg" title="Save as High-Res SVG">⬇ Download SVG</button>
+    </div>
+  </header>
+
+  <div id="diagram-container">
+    <div class="loading-overlay" id="loading">
+      <div class="spinner"></div>
+      <div>Rendering High-Definition Complete System Diagram...</div>
+    </div>
+    <div id="mermaid-wrapper">
+      <div class="mermaid" id="diagram-content">
+flowchart TD
+    %% Global Styling
+    classDef auth fill:#1e3a8a,stroke:#3b82f6,stroke-width:2px,color:#ffffff;
+    classDef college fill:#78350f,stroke:#f59e0b,stroke-width:2px,color:#ffffff;
+    classDef discover fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#ffffff;
+    classDef comms fill:#581c87,stroke:#a855f7,stroke-width:2px,color:#ffffff;
+    classDef career fill:#7c2d12,stroke:#f97316,stroke-width:2px,color:#ffffff;
+    classDef admin fill:#881337,stroke:#f43f5e,stroke-width:2px,color:#ffffff;
+    classDef decision fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#38bdf8;
+
+    %% STAGE 1: ONBOARDING & INSTITUTIONAL BOUNDARY
+    Start(["1. User Visits AlumniConnect Platform"]) --> RegChoice{"Auth Method?"}:::decision
+    RegChoice -->|Google OAuth 2.0| OAuthFlow["Google Sign-In: Verified Email"]:::auth
+    RegChoice -->|Email and Password| CredFlow["Bcrypt 12 Rounds + Email OTP"]:::auth
+    
+    OAuthFlow --> StateSelect["2. Geographic Cascading: Select State"]:::college
+    CredFlow --> StateSelect
+    StateSelect --> DistSelect["Select District"]:::college
+    DistSelect --> ColCheck{"College Exists in Database?"}:::decision
+
+    ColCheck -->|YES| BindCollege["Bind Canonical College UUID to User"]:::college
+    ColCheck -->|NO| AddReq["Submit College Addition Request"]:::college
+    AddReq --> AdminReview{"Admin Verifies College Proof"}:::decision
+    AdminReview -->|Rejected| NotifFail["Notify Submitter: Invalid Proof"]:::admin
+    AdminReview -->|Approved| CreateCol["Insert into Canonical Colleges Table"]:::admin
+    CreateCol --> BindCollege
+
+    %% STAGE 2: MULTI-DIMENSIONAL IDENTITY & DISCOVERY
+    BindCollege --> IssueTokens["Issue 15m JWT + 7d Rotating Refresh Token"]:::auth
+    IssueTokens --> RoleBranch{"User Role?"}:::decision
+
+    %% STUDENT PATH
+    RoleBranch -->|Enrolled Student| StuHome["Student Dashboard"]:::discover
+    StuHome --> DiscChoice{"Discovery View?"}:::decision
+
+    DiscChoice -->|Default View| SameColFeed["Strict Same-College Discovery: 100% Alma Mater Alumni"]:::discover
+    DiscChoice -->|Explicit Tab| CrossColFeed["Explore Other Colleges: Targeted State/College Filter"]:::discover
+
+    SameColFeed --> FilterAlumni["Filter by Branch, Year, Skills, Company"]:::discover
+    CrossColFeed --> FilterAlumni
+    FilterAlumni --> SelectAlum["Select Verified Alumnus Profile"]:::discover
+
+    %% STAGE 3: INTERACTION FORK
+    SelectAlum --> ActionFork{"Choose Action"}:::decision
+
+    %% FEATURE 3.1: 2-MINUTE INTRO CHAT
+    ActionFork -->|1. Introductory Direct Message| CheckConn{"Connected?"}:::decision
+    CheckConn -->|YES| FullChat["Unlimited Realtime Socket.IO Chat: AES-256-GCM at Rest"]:::comms
+    CheckConn -->|NO| Start2Min["Engage 2-Minute Introductory Window"]:::comms
+    Start2Min --> RedisTimer["Server Starts Redis TTL Key: 120s Countdown"]:::comms
+    RedisTimer --> TimerCheck{"120 Seconds Elapsed?"}:::decision
+    TimerCheck -->|Under 120s| DeliverMsg["Deliver Message with Trial Indicator"]:::comms
+    TimerCheck -->|120s Expired| LockChat["Socket Input Locked: Connect to continue"]:::comms
+
+    %% FEATURE 3.2: CONNECTION REQUEST
+    ActionFork -->|2. Send Connection Request| SendReq["ConnectionRequest: Status PENDING"]:::comms
+    LockChat --> SendReq
+    SendReq --> AlumDecision{"Alumnus Decision"}:::decision
+    AlumDecision -->|Reject| Cooldown["Request Rejected: 30-Day Anti-Spam Cooldown"]:::comms
+    AlumDecision -->|Accept| ConnectedState["Status: CONNECTED"]:::comms
+    ConnectedState --> FullChat
+    ConnectedState --> VoiceVideoCall["WebRTC 1-on-1 Audio/Video Call via Coturn Relay"]:::comms
+
+    %% FEATURE 3.3: MENTORSHIP MARKETPLACE
+    ActionFork -->|3. Book Mentorship| CheckCap{"Active Mentees < MaxCap?"}:::decision
+    CheckCap -->|Full: e.g. 3 of 3| BookDisabled["Form Disabled: Mentor has reached capacity"]:::career
+    CheckCap -->|Slot Available| SubmitMentReq["Submit Goals Checklist & Note"]:::career
+    SubmitMentReq --> MentorAcc{"Mentor Accepts?"}:::decision
+    MentorAcc -->|Accept| MentWorkspace["Shared Mentorship Workspace: Realtime Notes & Checklist"]:::career
+    MentorAcc -->|Decline| MentDecline["Feedback provided to student"]:::career
+    MentWorkspace --> CompleteMent["Mark Mentorship Completed"]:::career
+    CompleteMent --> MentSurvey["Both Submit 1-5 Star Anonymous Review"]:::career
+    MentSurvey --> AwardRep["+50 Points to Alumnus Leaderboard Score"]:::career
+
+    %% STAGE 4: OPPORTUNITIES & REFERRALS
+    RoleBranch -->|Verified Alumnus| AlumHome["Alumnus Dashboard"]:::career
+    AlumHome --> PostOpp["Post Opportunity: Job / Internship / Hackathon"]:::career
+    PostOpp --> OppRadar["Opportunity Radar: Jaccard Skill Compatibility Matcher"]:::career
+    StuHome --> OppRadar
+    OppRadar --> ViewJob["Student Views Compatible Opportunity"]:::career
+    ViewJob --> ClickReferral["Click Request Referral + Attach Verified Resume PDF"]:::career
+    ClickReferral --> AlumTriage["Alumnus Opens Candidate Dashboard"]:::career
+    AlumTriage --> InlinePDF["Preview Resume via Secure Inline PDF Viewer"]:::career
+    InlinePDF --> RefDecision{"Referral Decision?"}:::decision
+    RefDecision -->|Shortlist or Refer| MarkReferred["Mark REFERRED + Add Portal Tracking ID"]:::career
+    MarkReferred --> NotifyStudent["Realtime Push Notification to Student"]:::career
+    MarkReferred --> AwardRefPoints["+40 Points to Alumnus Leaderboard Score"]:::career
+    RefDecision -->|Reject| FeedbackReject["Constructive Feedback Sent to Student"]:::career
+
+    %% STAGE 5: SOCIAL FEED & CERTIFICATE PREVIEW
+    StuHome --> SocialFeed["Academic Social Feed"]:::discover
+    AlumHome --> SocialFeed
+    SocialFeed --> CreatePost["Publish Post: Achievements / Event / Certificate"]:::discover
+    CreatePost --> UploadPDF["Upload PDF Certificate via Multipart Stream"]:::discover
+    UploadPDF --> PrivateStorage["Stored in Private Storage with Magic-Byte Scan"]:::discover
+    PrivateStorage --> FeedRender["Render Feed Card with Inline PDF Canvas Zoom/Page Viewer"]:::discover
+    FeedRender --> SocialReact["Atomic Likes, Comments, and Sharing"]:::discover
+
+    %% STAGE 6: GAMIFICATION & LEADERBOARD
+    AwardRep --> LeadEngine["Leaderboard Heuristics Engine"]:::career
+    AwardRefPoints --> LeadEngine
+    LeadEngine --> DailyCapCheck{"Points > 200 per day?"}:::decision
+    DailyCapCheck -->|Yes: Over 200| CapPoints["Cap Daily Score at 200 pts"]:::career
+    DailyCapCheck -->|No: Within Limit| AcceptPoints["Record Score in Ledger"]:::career
+    AcceptPoints --> CheckOptOut{"showOnLeaderboard is True?"}:::decision
+    CheckOptOut -->|True| ShowRank["Display on Alma Mater Top 50 Leaderboard"]:::career
+    CheckOptOut -->|False: Opt-Out| HideRank["Hide from Public Rankings: Privacy Preserved"]:::career
+
+    %% STAGE 7: STUDENT-TO-ALUMNI LIFECYCLE
+    StuHome --> GradDatePasses["Graduation Calendar Date Passes"]:::auth
+    GradDatePasses --> CronTrigger["Automated Cron: Transition to GRADUATION_PENDING_VERIFICATION"]:::auth
+    CronTrigger --> PromptUpload["Send Prompt: Upload Degree Proof for Alumni Status"]:::auth
+    PromptUpload --> UploadDegree["Upload Degree Certificate / College Email OTP"]:::auth
+    UploadDegree --> InstReview{"College Admin Reviews Degree"}:::decision
+    InstReview -->|Approved| UpgradeAlum["PlatformRole = ALUMNUS, Tier = INSTITUTION_VERIFIED"]:::auth
+    UpgradeAlum --> AlumHome
+    InstReview -->|Rejected| KeepStu["Role remains STUDENT pending re-upload"]:::auth
+
+    %% STAGE 8: PLATFORM SAFETY & MODERATION
+    FullChat -.->|Report Abuse| FileReport["User Reports Profile / Message / Post"]:::admin
+    SocialReact -.->|Report Spam| FileReport
+    FileReport --> InsertReport["Create Immutable Report: status OPEN"]:::admin
+    InsertReport --> CheckThreshold{"5 or more Reports in 14 Days?"}:::decision
+    CheckThreshold -->|Threshold Hit: 5 Reports| AutoThrottle["AUTOMATIC SYSTEM TRIGGER: Account RESTRICTED"]:::admin
+    AutoThrottle --> RevokeSessions["Kill Active Sockets & Prevent New Chats/Calls"]:::admin
+    AutoThrottle --> AdminDesk["Escalate with High Urgency to Admin Moderation Dashboard"]:::admin
+    CheckThreshold -->|Under 5 Reports| RoutineQueue["Routine Admin Triage Queue"]:::admin
+    RoutineQueue --> AdminDesk
+    AdminDesk --> FinalModDecision{"Admin Investigation"}:::decision
+    FinalModDecision -->|False Alarm| RestoreAccount["Restore Normal Standing"]:::admin
+    FinalModDecision -->|Violation Found| PermBan["Permanent Ban + Email Domain Blacklist"]:::admin
+</div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-title">System Module Legend</div>
+    <div class="legend-item"><div class="legend-color" style="background: #1e3a8a; border-color: #3b82f6;"></div><span>Identity, Auth & Graduation Lifecycle</span></div>
+    <div class="legend-item"><div class="legend-color" style="background: #78350f; border-color: #f59e0b;"></div><span>Institutional Governance & Hierarchy</span></div>
+    <div class="legend-item"><div class="legend-color" style="background: #064e3b; border-color: #10b981;"></div><span>Discovery, Matching & Social Feed</span></div>
+    <div class="legend-item"><div class="legend-color" style="background: #581c87; border-color: #a855f7;"></div><span>2-Min Chat, Connections & WebRTC Calls</span></div>
+    <div class="legend-item"><div class="legend-color" style="background: #7c2d12; border-color: #f97316;"></div><span>Mentorship, Referrals & Leaderboard</span></div>
+    <div class="legend-item"><div class="legend-color" style="background: #881337; border-color: #f43f5e;"></div><span>Safety, Reporting & Administration</span></div>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        darkMode: true,
+        background: '#0b1120',
+        primaryColor: '#1e293b',
+        primaryTextColor: '#f8fafc',
+        primaryBorderColor: '#475569',
+        lineColor: '#64748b',
+        secondaryColor: '#0f172a',
+        tertiaryColor: '#1e293b'
+      },
+      flowchart: {
+        useMaxWidth: false,
+        htmlLabels: true,
+        curve: 'basis'
+      }
+    });
+
+    let panZoomInstance = null;
+
+    window.addEventListener('load', () => {
+      // Wait for mermaid to finish rendering
+      setTimeout(() => {
+        const svgElement = document.querySelector('#mermaid-wrapper svg');
+        if (svgElement) {
+          svgElement.style.width = '100%';
+          svgElement.style.height = '100%';
+          
+          panZoomInstance = svgPanZoom(svgElement, {
+            zoomEnabled: true,
+            controlIconsEnabled: false,
+            fit: true,
+            center: true,
+            minZoom: 0.2,
+            maxZoom: 10,
+            zoomScaleSensitivity: 0.3
+          });
+
+          document.getElementById('loading').style.display = 'none';
+
+          document.getElementById('zoom-in').addEventListener('click', () => panZoomInstance.zoomIn());
+          document.getElementById('zoom-out').addEventListener('click', () => panZoomInstance.zoomOut());
+          document.getElementById('reset-zoom').addEventListener('click', () => {
+            panZoomInstance.resetZoom();
+            panZoomInstance.center();
+          });
+
+          // Download High-Resolution PNG (Pre-rendered 465 KB file)
+          document.getElementById('download-png').addEventListener('click', (e) => {
+            console.log("Downloading pre-rendered high-res PNG image...");
+          });
+
+          // Download SVG
+          document.getElementById('download-svg').addEventListener('click', () => {
+            const serializer = new XMLSerializer();
+            let source = serializer.serializeToString(svgElement);
+            source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
+            const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source);
+            const downloadLink = document.createElement("a");
+            downloadLink.href = url;
+            downloadLink.download = "AlumniConnect_Complete_System_Workflow.svg";
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+          });
+        }
+      }, 1000);
+    });
+  </script>
+</body>
+</html>
