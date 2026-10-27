@@ -48,6 +48,9 @@ export default function Stats() {
               <p className="mt-1 text-xs text-slate-500 leading-relaxed">
                 {item.desc}
               </p>
+              <div className="mt-2 text-sm sm:text-base font-semibold text-red-600">
+                {item.badge}
+              </div>
             </div>
           ))}
         </div>
