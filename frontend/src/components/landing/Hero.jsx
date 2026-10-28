@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 export default function Hero() {
   return (
     <section className="max-w-7xl mx-auto px-8 py-16 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -25,10 +27,12 @@ export default function Hero() {
 
         {/* Two Buttons */}
         <div className="flex flex-wrap items-center gap-4 pt-2">
-          <button className="px-6 py-3.5 bg-blue-900 hover:bg-blue-800 active:scale-95 text-white font-medium rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer"
->
+           <Link
+            to="/signup"
+            className="px-6 py-3.5 bg-blue-900 hover:bg-blue-800 active:scale-95 text-white font-medium rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer inline-block"
+          >
             Join Your College Network →
-          </button>
+          </Link>
           <button className="px-6 py-3.5 bg-white hover:bg-slate-50 border border-slate-300 hover:border-slate-400 text-slate-700 font-medium rounded-xl transition-all cursor-pointer">
             Explore Mentors
           </button>
