@@ -10,6 +10,8 @@ export default function LoginForm() {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   // 2. Universal Input Change Handler
   const handleChange = (e) => {
@@ -19,15 +21,36 @@ export default function LoginForm() {
     });
   };
 
-  // 3. Form Submit Handler with simulated delay
-  const handleSubmit = (e) => {
+  // 3. Form Submit Handler with Real Spring Boot API call
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrorMessage("");
+    setSuccessMessage("");
 
-    setTimeout(() => {
+    try {
+      const response = await fetch("http://localhost:8080/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          role: formData.role,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setSuccessMessage(`🎉 Welcome back, ${result.data.fullName}! Logged in as ${result.data.role}.`);
+      } else {
+        setErrorMessage(result.message || "Invalid email or password.");
+      }
+    } catch (err) {
+      setErrorMessage("Could not connect to backend server. Make sure Spring Boot is running on port 8080.");
+    } finally {
       setIsLoading(false);
-      alert(`🎉 Login Successful!\nRole: ${formData.role.toUpperCase()}\nEmail: ${formData.email}`);
-    }, 1000);
+    }
   };
 
   return (
@@ -36,7 +59,7 @@ export default function LoginForm() {
         
         {/* Header */}
         <div>
-          {/* Mobile Only Logo (Desktop pe hide rahega kyuki left banner pe logo hai) */}
+          {/* Mobile Only Logo */}
           <div className="lg:hidden mb-6">
             <Link to="/" className="inline-flex items-center gap-2">
               <span className="text-2xl">🎓</span>
@@ -53,6 +76,18 @@ export default function LoginForm() {
             Enter your credentials to access your institutional portal.
           </p>
         </div>
+
+        {/* Feedback Alert Banners */}
+        {errorMessage && (
+          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
+            ⚠️ {errorMessage}
+          </div>
+        )}
+        {successMessage && (
+          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+            {successMessage}
+          </div>
+        )}
 
         {/* Role Toggle Switch */}
         <div className="bg-slate-100 p-1.5 rounded-xl grid grid-cols-2 gap-1 text-sm font-semibold">
@@ -95,7 +130,7 @@ export default function LoginForm() {
               onChange={handleChange}
               placeholder={
                 formData.role === "student"
-                  ? "e.g. 0101CS211045 or rohan@college.edu"
+                  ? "e.g. rohan@rgpv.ac.in"
                   : "e.g. ayush@microsoft.com"
               }
               className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 text-slate-900 placeholder:text-slate-400 text-sm outline-none transition-all"

@@ -1,7 +1,9 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 export default function SignupForm() {
+  const navigate = useNavigate();
+
   // 1. Multi-Field Form State
   const [formData, setFormData] = useState({
     fullName: "",
@@ -19,6 +21,8 @@ export default function SignupForm() {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   // Universal Input Change Handler
   const handleChange = (e) => {
@@ -28,15 +32,35 @@ export default function SignupForm() {
     });
   };
 
-  // Form Submit Handler
-  const handleSubmit = (e) => {
+  // Form Submit Handler with Real Spring Boot API call
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrorMessage("");
+    setSuccessMessage("");
 
-    setTimeout(() => {
+    try {
+      const response = await fetch("http://localhost:8080/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setSuccessMessage("🎉 Account created successfully! Redirecting to login...");
+        setTimeout(() => {
+          navigate("/login");
+        }, 1500);
+      } else {
+        setErrorMessage(result.message || "Registration failed. Please check your details.");
+      }
+    } catch (err) {
+      setErrorMessage("Could not connect to Spring Boot backend. Please ensure backend is running on port 8080.");
+    } finally {
       setIsLoading(false);
-      alert(`🎉 Registration Successful as ${formData.role.toUpperCase()}!\nName: ${formData.fullName}\nCollege: ${formData.college}`);
-    }, 1000);
+    }
   };
 
   return (
@@ -62,6 +86,18 @@ export default function SignupForm() {
             Join your verified institutional college network today.
           </p>
         </div>
+
+        {/* Feedback Alert Banners */}
+        {errorMessage && (
+          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
+            ⚠️ {errorMessage}
+          </div>
+        )}
+        {successMessage && (
+          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+            {successMessage}
+          </div>
+        )}
 
         {/* Role Toggle Switch */}
         <div className="bg-slate-100 p-1.5 rounded-xl grid grid-cols-2 gap-1 text-sm font-semibold">
@@ -225,7 +261,7 @@ export default function SignupForm() {
               required
               value={formData.password}
               onChange={handleChange}
-              placeholder="Minimum 8 characters"
+              placeholder="Minimum 6 characters"
               className="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 text-slate-900 text-sm outline-none transition-all"
             />
           </div>
@@ -237,7 +273,7 @@ export default function SignupForm() {
             className="w-full py-3.5 bg-blue-900 hover:bg-blue-800 active:scale-98 text-white font-semibold rounded-xl text-sm shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 mt-2"
           >
             {isLoading ? (
-              <span>Creating profile...</span>
+              <span>Connecting to backend & saving to database...</span>
             ) : (
               <span>Claim Your Campus Profile →</span>
             )}

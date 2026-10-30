@@ -1,0 +1,10 @@
+com\alumniconnect\dto\ApiResponse.class
+com\alumniconnect\dto\SignupRequest.class
+com\alumniconnect\dto\LoginRequest.class
+com\alumniconnect\model\User.class
+com\alumniconnect\repository\UserRepository.class
+com\alumniconnect\dto\UserResponse.class
+com\alumniconnect\service\AuthService.class
+com\alumniconnect\config\SecurityConfig.class
+com\alumniconnect\AlumniConnectApplication.class
+com\alumniconnect\controller\AuthController.class

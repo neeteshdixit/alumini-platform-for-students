@@ -1,0 +1,10 @@
+D:\Projects\alumini-platform-for-students-1\backend\src\main\java\com\alumniconnect\AlumniConnectApplication.java
+D:\Projects\alumini-platform-for-students-1\backend\src\main\java\com\alumniconnect\config\SecurityConfig.java
+D:\Projects\alumini-platform-for-students-1\backend\src\main\java\com\alumniconnect\controller\AuthController.java
+D:\Projects\alumini-platform-for-students-1\backend\src\main\java\com\alumniconnect\dto\ApiResponse.java
+D:\Projects\alumini-platform-for-students-1\backend\src\main\java\com\alumniconnect\dto\LoginRequest.java
+D:\Projects\alumini-platform-for-students-1\backend\src\main\java\com\alumniconnect\dto\SignupRequest.java
+D:\Projects\alumini-platform-for-students-1\backend\src\main\java\com\alumniconnect\dto\UserResponse.java
+D:\Projects\alumini-platform-for-students-1\backend\src\main\java\com\alumniconnect\model\User.java
+D:\Projects\alumini-platform-for-students-1\backend\src\main\java\com\alumniconnect\repository\UserRepository.java
+D:\Projects\alumini-platform-for-students-1\backend\src\main\java\com\alumniconnect\service\AuthService.java
