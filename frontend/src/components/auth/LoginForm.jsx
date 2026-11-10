@@ -1,7 +1,9 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 export default function LoginForm() {
+  const navigate = useNavigate();
+
   // 1. State Management
   const [formData, setFormData] = useState({
     email: "",
@@ -22,6 +24,7 @@ export default function LoginForm() {
   };
 
   // 3. Form Submit Handler with Real Spring Boot API call
+    // 3. Form Submit Handler with Role-Based Navigation
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -42,9 +45,23 @@ export default function LoginForm() {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        setSuccessMessage(`🎉 Welcome back, ${result.data.fullName}! Logged in as ${result.data.role}.`);
+        // User ko localStorage me save kar lete hain taaki profile page padh sake:
+        localStorage.setItem("authUser", JSON.stringify(result.data));
+
+        setSuccessMessage(`🎉 Login Successful! Redirecting to ${result.data.role} Dashboard...`);
+
+        setTimeout(() => {
+          // ROLE-BASED REDIRECT:
+          if (result.data.role === "STUDENT") {
+            navigate("/student/profile");
+          } else if (result.data.role === "ALUMNI") {
+            navigate("/alumni/profile");
+          } else {
+            navigate("/");
+          }
+        }, 1000);
       } else {
-        setErrorMessage(result.message || "Invalid email or password.");
+        setErrorMessage(result.message || "Invalid credentials.");
       }
     } catch (err) {
       setErrorMessage("Could not connect to backend server. Make sure Spring Boot is running on port 8080.");

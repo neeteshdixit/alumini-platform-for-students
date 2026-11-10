@@ -31,7 +31,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
-                .anyRequest().permitAll() // Allow development endpoints freely
+                .anyRequest().permitAll()
             );
 
         return http.build();
@@ -50,4 +50,3 @@ public class SecurityConfig {
         return source;
     }
 }
-

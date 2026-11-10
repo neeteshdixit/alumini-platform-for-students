@@ -9,8 +9,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
-
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -38,14 +36,4 @@ public class AuthController {
         }
         return ResponseEntity.ok(response);
     }
-
-    @GetMapping("/health")
-    public ResponseEntity<Map<String, Object>> health() {
-        return ResponseEntity.ok(Map.of(
-            "status", "UP",
-            "service", "AlumniConnect Auth API",
-            "database", "MySQL (alumni_platform)"
-        ));
-    }
 }
-

@@ -23,7 +23,6 @@ public class AuthService {
     }
 
     public ApiResponse<UserResponse> register(SignupRequest request) {
-        // 1. Validation
         if (request.getEmail() == null || request.getEmail().isBlank()) {
             return ApiResponse.error("Email is required.");
         }
@@ -34,21 +33,18 @@ public class AuthService {
             return ApiResponse.error("An account with this email already exists.");
         }
 
-        // 2. Map DTO to Entity
         User user = new User();
         user.setFullName(request.getFullName() != null ? request.getFullName().trim() : "");
         user.setEmail(request.getEmail().trim().toLowerCase());
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setCollege(request.getCollege() != null ? request.getCollege() : "General Campus");
 
-        // Role normalization
         String role = "STUDENT";
         if (request.getRole() != null && request.getRole().equalsIgnoreCase("alumni")) {
             role = "ALUMNI";
         }
         user.setRole(role);
 
-        // Role-specific fields
         if ("STUDENT".equals(role)) {
             user.setRollNumber(request.getRollNumber());
             user.setBranch(request.getBranch());
@@ -58,9 +54,7 @@ public class AuthService {
             user.setBatch(request.getBatch());
         }
 
-        // 3. Save to MySQL
         User savedUser = userRepository.save(user);
-
         return ApiResponse.success("Registration successful! Welcome to AlumniConnect.", UserResponse.fromUser(savedUser));
     }
 
@@ -76,7 +70,6 @@ public class AuthService {
 
         User user = userOpt.get();
 
-        // Verify password
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             return ApiResponse.error("Invalid email or password.");
         }
@@ -84,4 +77,3 @@ public class AuthService {
         return ApiResponse.success("Login successful!", UserResponse.fromUser(user));
     }
 }
-
